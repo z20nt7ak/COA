@@ -3,7 +3,7 @@ info:
   title: Лабораторная работа №1
   version: "1.0"
 servers:
-  - url: https://api.server.test/v1
+  - url: https://176.12.70.243:8081
 
 paths:
   /lab-works:
@@ -135,6 +135,25 @@ paths:
         "404":
           description: "Нет лабораторных работ"
 
+  /lab-works/search:
+    post:
+      description: "Поиск, фильтрация, сортировка и постраничный вывод лабораторных работ"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabWorkSearchRequest"
+      responses:
+        "200":
+          description: "Результаты поиска получены"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabWorkPageResponse"
+        "400":
+          description: "Переданы некорректные параметры поиска"
+
 # компоненты
 components:
   schemas:
@@ -221,3 +240,54 @@ components:
           type: integer
           format: int64
           minimum: 1
+
+    LabWorkSearchRequest:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        size:
+          type: integer
+          minimum: 1
+        sort:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        creationDate:
+          type: string
+          format: date-time
+        minimalPoint:
+          type: integer
+          format: int32
+        difficulty:
+          type: string
+          enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+        discipline:
+          $ref: "#/components/schemas/Discipline"
+
+    LabWorkPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/LabWork"
+        page:
+          type: integer
+          minimum: 1
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
