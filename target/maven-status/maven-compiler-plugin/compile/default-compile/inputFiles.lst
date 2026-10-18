@@ -1,0 +1,17 @@
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/CoaApplication.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/dto/request/CoordinatesRequestDto.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/dto/request/DisciplineRequestDto.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/dto/request/ExistingDisciplineDto.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/dto/request/LabWorkRequestDto.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/dto/responce/CoordinatesResponseDto.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/dto/responce/DisciplineResponseDto.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/dto/responce/LabWorkResponseDto.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/enums/Difficulty.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/mapper/DisciplineMapper.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/models/Coordinates.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/models/Discipline.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/models/LabWork.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/repository/DisciplineRepository.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/repository/LabWorkRepository.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/service/DisciplineService.java
+/Users/danilasolodovnikov/itmo/СОА/COA2/src/main/java/org/example/service/LabWorkService.java
