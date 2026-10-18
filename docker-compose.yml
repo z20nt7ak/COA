@@ -1,0 +1,16 @@
+volumes:
+  pg_lab_work:
+
+services:
+  lab_work_db:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres3
+      - POSTGRES_PASSWORD=0000
+      - POSTGRES_DB=lab_work_db
+    volumes:
+      - pg_lab_work:/var/lib/lab_work_db
+
+    ports:
+      - "127.0.0.1:5433:5432"
