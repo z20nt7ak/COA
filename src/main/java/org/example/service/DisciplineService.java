@@ -1,4 +1,5 @@
 package org.example.service;
+import jakarta.persistence.EntityNotFoundException;
 import org.example.dto.request.DisciplineRequestDto;
 import org.example.dto.responce.DisciplineResponseDto;
 import org.example.mapper.DisciplineMapper;
@@ -25,5 +26,29 @@ public class DisciplineService {
         Discipline discipline = disciplineMapper.toEntity(requestDto);
         disciplineRepository.save(discipline);
         return disciplineMapper.toDto(discipline);
+    }
+
+    public void delete(Long id) {
+        Discipline discipline = findDiscipline(id);
+        disciplineRepository.delete(discipline);
+    }
+
+    public DisciplineResponseDto getDiscipline(Long id) {
+        Discipline discipline = findDiscipline(id);
+        return disciplineMapper.toDto(discipline);
+    }
+
+    public DisciplineResponseDto update(Long id, DisciplineRequestDto request) {
+        Discipline discipline = findDiscipline(id);
+        discipline.setName(request.getName());
+        discipline.setPracticeHours(request.getPracticeHours());
+        discipline.setLabsCount(request.getLabsCount());
+        Discipline saved = disciplineRepository.save(discipline);
+        return disciplineMapper.toDto(saved);
+    }
+
+    public Discipline findDiscipline(Long id) {
+        return disciplineRepository.findById(id).orElseThrow(() ->
+                new EntityNotFoundException("Дисциплина с id=" + id + " не найдена"));
     }
 }
