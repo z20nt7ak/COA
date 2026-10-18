@@ -24,6 +24,10 @@ paths:
                 $ref: "#/components/schemas/LabWork"
         "400":
           description: "Некорректные данные"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /disciplines:
     post:
@@ -43,6 +47,10 @@ paths:
                 $ref: "#/components/schemas/Discipline"
         "400":
           description: "Некорректные данные"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /lab-works/{id}:
     get:
@@ -64,8 +72,16 @@ paths:
                 $ref: "#/components/schemas/LabWork"
         "400":
           description: "Некорректный id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Лабораторная не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
     put:
       description: " Обновить лабораторную по id"
@@ -92,8 +108,16 @@ paths:
                 $ref: "#/components/schemas/LabWork"
         "400":
           description: "Некорректный id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Лабораторная не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       description: "Удалить лабораторную по id"
@@ -110,8 +134,16 @@ paths:
           description: "Лабораторная успешно удалена"
         "400":
           description: "Некорректный id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Лабораторная не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /disciplines/{id}:
     get:
@@ -133,8 +165,16 @@ paths:
                 $ref: "#/components/schemas/Discipline"
         "400":
           description: "Некорректный id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Дисциплина не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
     put:
       description: "Обновить дисциплину по id"
@@ -161,8 +201,16 @@ paths:
                 $ref: "#/components/schemas/Discipline"
         "400":
           description: "Некорректные данные"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Дисциплина не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       description: "Удалить дисциплину по id"
@@ -179,8 +227,16 @@ paths:
           description: "Дисциплина успешно удалена"
         "400":
           description: "Некорректный id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Дисциплина не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /lab-works/search:
     post:
@@ -200,6 +256,10 @@ paths:
                 $ref: "#/components/schemas/LabWorkPageResponse"
         "400":
           description: "Переданы некорректные параметры поиска"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /disciplines/search:
     post:
@@ -219,8 +279,12 @@ paths:
                 $ref: "#/components/schemas/DisciplinePageResponse"
         "400":
           description: "Переданы некорректные параметры поиска"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /lab-works/min-id:
+  /lab-works/by-min-id:
     get:
       description: "Вернуть лабораторную работу с наименьшим id"
       responses:
@@ -232,8 +296,12 @@ paths:
                 $ref: "#/components/schemas/LabWork"
         "404":
           description: "Нет лабораторных работ"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /lab-works/max-difficulty:
+  /lab-works/by-max-difficulty:
     get:
       description: "Вернуть лабораторную работу с максимальным значением difficulty"
       responses:
@@ -245,8 +313,12 @@ paths:
                 $ref: "#/components/schemas/LabWork"
         "404":
           description: "Нет лабораторных работ"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /lab-works/group:
+  /lab-works/group-by-name:
     get:
       description: "Сгруппировать лабораторные работы по полю name и вернуть количество элементов в каждой группе"
       responses:
@@ -260,6 +332,10 @@ paths:
                   $ref: "#/components/schemas/Group"
         "404":
           description: "Нет лабораторных работ"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 # компоненты
 components:
@@ -384,15 +460,8 @@ components:
           enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]
 
         discipline:
-          description: >
-            Можно либо создать новую дисциплину,
-            либо использовать уже существующую.
-            Для новой дисциплины передаются name и practiceHours.
-            Для существующей передается только id.
+          $ref: "#/components/schemas/ExistingDiscipline"
           nullable: true
-          oneOf:
-            - $ref: "#/components/schemas/Discipline"
-            - $ref: "#/components/schemas/ExistingDiscipline"
 
     LabWorkSearchRequest:
       type: object
@@ -405,33 +474,76 @@ components:
           type: integer
           minimum: 1
 
-        sort:
+        sortBy:
           type: string
+          enum:
+            - id
+            - name
+            - creationDate
+            - minimalPoint
+            - difficulty
+
+        sortType:
+          type: string
+          enum:
+            - asc
+            - desc
 
         id:
-          type: integer
-          format: int64
+          type: array
+          items:
+            type: integer
+            format: int64
+            minimum: 1
 
         name:
           type: string
 
-        coordinates:
-          $ref: "#/components/schemas/Coordinates"
-
-        creationDate:
-          type: string
-          format: date-time
-
-        minimalPoint:
+        xFrom:
           type: integer
           format: int32
+
+        xTo:
+          type: integer
+          format: int32
+
+        yFrom:
+          type: number
+          format: double
+
+        yTo:
+          type: number
+          format: double
+
+        creationDateFrom:
+          type: string
+          format: date
+
+        creationDateTo:
+          type: string
+          format: date
+
+        minimalPointFrom:
+          type: integer
+          format: int32
+          minimum: 1
+
+        minimalPointTo:
+          type: integer
+          format: int32
+          minimum: 1
 
         difficulty:
           type: string
           enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]
 
-        discipline:
-          $ref: "#/components/schemas/Discipline"
+        disciplineIds:
+          type: array
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+            minimum: 1
 
     DisciplineSearchRequest:
       type: object
@@ -439,26 +551,56 @@ components:
         page:
           type: integer
           minimum: 1
+          default: 1
 
         size:
           type: integer
           minimum: 1
-        sort:
+          default: 10
+
+        sortBy:
           type: string
-        id:
-          type: integer
-          format: int64
+          enum:
+            - id
+            - name
+            - practiceHours
+            - labsCount
+
+        sortDirection:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: asc
+
+        ids:
+          type: array
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+            minimum: 1
 
         name:
           type: string
 
-        practiceHours:
+        practiceHoursFrom:
           type: integer
           format: int64
 
-        labsCount:
+        practiceHoursTo:
           type: integer
           format: int64
+
+        labsCountFrom:
+          type: integer
+          format: int64
+          minimum: 0
+
+        labsCountTo:
+          type: integer
+          format: int64
+          minimum: 0
 
     LabWorkPageResponse:
       type: object
@@ -519,3 +661,13 @@ components:
           type: integer
           format: int64
           minimum: 1
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string

@@ -29,11 +29,19 @@ paths:
           description: "Лабораторная работа добавлена в программу дисциплины"
         "400":
           description: "Некорректный id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Дисциплина или лабораторная работа не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /bars/discipline/{discipline-id}/labwork/{labwork-id}/remove:
-    delete:
+    post:
       description: "Удалить лабораторную работу из программы дисциплины"
       parameters:
         - name: discipline-id
@@ -55,5 +63,25 @@ paths:
           description: "Лабораторная работа удалена из программы дисциплины"
         "400":
           description: "Некорректный id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "Дисциплина или лабораторная работа не найдена"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
