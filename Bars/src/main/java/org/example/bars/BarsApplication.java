@@ -2,12 +2,18 @@ package org.example.bars;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
 
 @SpringBootApplication
-public class BarsApplication {
+public class BarsApplication extends SpringBootServletInitializer {
+
+    @Override
+    protected SpringApplicationBuilder configure(SpringApplicationBuilder application) {
+        return application.sources(BarsApplication.class);
+    }
 
     public static void main(String[] args) {
         SpringApplication.run(BarsApplication.class, args);
     }
-
 }

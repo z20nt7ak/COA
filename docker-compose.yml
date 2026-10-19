@@ -14,3 +14,26 @@ services:
       - pg_lab_work:/var/lib/postgresql
     ports:
       - "127.0.0.1:5433:5432"
+
+  payara:
+    image: payara/server-full:7.2026.10
+    container_name: payara
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5433/lab_work_db
+      - DEPLOY_PROPS=--properties implicitCdiEnabled=false
+    volumes:
+      - ./Labs/target/labs.war:/opt/payara/deployments/labs.war
+    ports:
+      - "8080:8080"
+      - "4848:4848"
+
+  jetty:
+    image: jetty:12.1-jdk21
+    container_name: jetty
+    command: --module=ee11-deploy,ee11-annotations
+    environment:
+      - LABS_API_URL=http://payara:8080/labs
+    volumes:
+      - ./Bars/target/bars.war:/var/lib/jetty/webapps/bars.war
+    ports:
+      - "8081:8080"
