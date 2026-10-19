@@ -3,14 +3,14 @@ volumes:
 
 services:
   lab_work_db:
-    image: postgres
-    restart: always
+    image: postgres:18
+    container_name: lab_work_db
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres3
       - POSTGRES_PASSWORD=0000
       - POSTGRES_DB=lab_work_db
     volumes:
-      - pg_lab_work:/var/lib/lab_work_db
-
+      - pg_lab_work:/var/lib/postgresql
     ports:
       - "127.0.0.1:5433:5432"
