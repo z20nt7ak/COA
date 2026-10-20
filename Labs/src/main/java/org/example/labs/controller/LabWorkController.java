@@ -27,18 +27,18 @@ public class LabWorkController {
     }
 
     @GetMapping("/{id}")
-    public LabWorkResponseDto getById( @Positive @PathVariable("id") Long id) {
+    public LabWorkResponseDto getById(@PathVariable("id") Long id) {
         return labWorkService.getLabWork(id);
     }
 
     @PutMapping("/{id}")
-    public LabWorkResponseDto update(@Positive @PathVariable("id") Long id, @Valid @RequestBody LabWorkRequestDto request) {
+    public LabWorkResponseDto update(@PathVariable("id") Long id, @Valid @RequestBody LabWorkRequestDto request) {
         return labWorkService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@Positive @PathVariable("id") Long id) {
+    public void delete(@PathVariable("id") Long id) {
         labWorkService.delete(id);
     }
 }

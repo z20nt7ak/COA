@@ -8,12 +8,13 @@ import org.springframework.boot.web.servlet.support.SpringBootServletInitializer
 @SpringBootApplication
 public class BarsApplication extends SpringBootServletInitializer {
 
+    public static void main(String[] args) {
+        SpringApplication.run(BarsApplication.class, args);
+    }
+
     @Override
     protected SpringApplicationBuilder configure(SpringApplicationBuilder application) {
         return application.sources(BarsApplication.class);
     }
 
-    public static void main(String[] args) {
-        SpringApplication.run(BarsApplication.class, args);
-    }
 }

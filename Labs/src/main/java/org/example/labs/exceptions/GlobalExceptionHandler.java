@@ -22,26 +22,16 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponseDto> handleBodyValidation(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .map(err -> err.getField() + ": " + err.getDefaultMessage())
-                .collect(Collectors.joining("; "));
-        return build(HttpStatus.BAD_REQUEST, message);
-    }
-
-    @ExceptionHandler(HandlerMethodValidationException.class)
-    public ResponseEntity<ErrorResponseDto> handleParamValidation(HandlerMethodValidationException e) {
-        String message = e.getAllErrors().stream()
-                .map(MessageSourceResolvable::getDefaultMessage)
-                .collect(Collectors.joining("; "));
-        return build(HttpStatus.BAD_REQUEST, message);
-    }
-
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponseDto> handleNotReadable(HttpMessageNotReadableException e) {
         return build(HttpStatus.BAD_REQUEST, "Некорректное тело запроса");
     }
+
+    @ExceptionHandler({InvalidIdException.class, DisciplineNotExistsException.class, DisciplineInUseException.class})
+    public ResponseEntity<ErrorResponseDto> handleBadRequest(RuntimeException e) {
+        return build(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponseDto> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
@@ -68,15 +58,20 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Ожидается Content-Type: application/json");
     }
 
-    @ExceptionHandler(DisciplineInUseException.class)
-    public ResponseEntity<ErrorResponseDto> handleDisciplineInUse(DisciplineInUseException e) {
-        return build(HttpStatus.CONFLICT, e.getMessage());
-    }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponseDto> handleIntegrity(DataIntegrityViolationException e) {
         return build(HttpStatus.CONFLICT, "Операция нарушает целостность данных");
     }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponseDto> handleBodyValidation(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        return build(HttpStatus.BAD_REQUEST, message);
+    }
+
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> handleOther(Exception e) {

@@ -4,15 +4,15 @@ import jakarta.persistence.EntityNotFoundException;
 import org.example.labs.dto.request.DisciplineRequestDto;
 import org.example.labs.dto.response.DisciplineResponseDto;
 import org.example.labs.exceptions.DisciplineInUseException;
+import org.example.labs.exceptions.DisciplineNotExistsException;
+import org.example.labs.exceptions.InvalidIdException;
 import org.example.labs.mapper.DisciplineMapper;
 import org.example.labs.models.Discipline;
 import org.example.labs.repository.DisciplineRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
 public class DisciplineService {
 
     private final DisciplineRepository disciplineRepository;
@@ -55,8 +55,16 @@ public class DisciplineService {
     }
 
     public Discipline findDiscipline(Long id) {
+        if (id <= 0) {
+            throw new InvalidIdException("Некорректный id");
+        }
         return disciplineRepository.findById(id).orElseThrow(() ->
                 new EntityNotFoundException("Дисциплина с id=" + id + " не найдена"));
+    }
+
+    public Discipline findDisciplineForLab(Long id) {
+        return disciplineRepository.findById(id).orElseThrow(() ->
+                new DisciplineNotExistsException("Дисциплина с id=" + id + " не существует"));
     }
 
     public void changeLabsCount(Discipline discipline, int numberOfLabs) {

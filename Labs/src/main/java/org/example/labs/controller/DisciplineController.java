@@ -27,18 +27,18 @@ public class DisciplineController {
     }
 
     @GetMapping("/{id}")
-    public DisciplineResponseDto getById( @Positive @PathVariable("id") Long id) {
+    public DisciplineResponseDto getById(@PathVariable("id") Long id) {
         return disciplineService.getDiscipline(id);
     }
 
     @PutMapping("/{id}")
-    public DisciplineResponseDto update( @Positive @PathVariable("id") Long id, @Valid @RequestBody DisciplineRequestDto request) {
+    public DisciplineResponseDto update(@PathVariable("id") Long id, @Valid @RequestBody DisciplineRequestDto request) {
         return disciplineService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@Positive @PathVariable("id") Long id) {
+    public void delete(@PathVariable("id") Long id) {
         disciplineService.delete(id);
     }
 }

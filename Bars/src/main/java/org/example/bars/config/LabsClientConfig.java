@@ -14,7 +14,7 @@ public class LabsClientConfig {
     @Bean
     public RestClient labsRestClient(@Value("${labs.api.url}") String labsUrl) {
         HttpClient httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)   // без попытки перейти на HTTP/2
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
 
         return RestClient.builder()

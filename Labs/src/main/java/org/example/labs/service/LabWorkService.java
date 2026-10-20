@@ -3,6 +3,7 @@ package org.example.labs.service;
 import jakarta.persistence.EntityNotFoundException;
 import org.example.labs.dto.request.LabWorkRequestDto;
 import org.example.labs.dto.response.LabWorkResponseDto;
+import org.example.labs.exceptions.InvalidIdException;
 import org.example.labs.mapper.LabWorkMapper;
 import org.example.labs.models.LabWork;
 import org.example.labs.repository.LabWorkRepository;
@@ -12,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.ZonedDateTime;
 
 @Service
-@Transactional
 public class LabWorkService {
 
     private final LabWorkRepository labWorkRepository;
@@ -30,11 +30,12 @@ public class LabWorkService {
         this.disciplineService = disciplineService;
     }
 
+    @Transactional
     public LabWorkResponseDto saveLabWork(LabWorkRequestDto requestDto) {
         LabWork labWork = labWorkMapper.toEntity(requestDto);
         labWork.setCreationDate(ZonedDateTime.now());
         labWork.setDiscipline(requestDto.getDiscipline() == null ? null :
-                disciplineService.findDiscipline(requestDto.getDiscipline().getId()));
+                disciplineService.findDisciplineForLab(requestDto.getDiscipline().getId()));
         LabWork saved = labWorkRepository.save(labWork);
         disciplineService.changeLabsCount(labWork.getDiscipline(), +1);
         return labWorkMapper.toDto(saved);
@@ -45,6 +46,7 @@ public class LabWorkService {
         return labWorkMapper.toDto(labWork);
     }
 
+    @Transactional
     public LabWorkResponseDto update(Long id, LabWorkRequestDto request) {
         LabWork labWork = findLabWork(id);
         labWork.setName(request.getName());
@@ -53,12 +55,13 @@ public class LabWorkService {
         labWork.setDifficulty(request.getDifficulty());
         disciplineService.changeLabsCount(labWork.getDiscipline(), -1);
         labWork.setDiscipline(request.getDiscipline() == null ? null :
-                disciplineService.findDiscipline(request.getDiscipline().getId()));
+                disciplineService.findDisciplineForLab(request.getDiscipline().getId()));
         disciplineService.changeLabsCount(labWork.getDiscipline(), +1);
         LabWork saved = labWorkRepository.save(labWork);
         return labWorkMapper.toDto(saved);
     }
 
+    @Transactional
     public void delete(Long id) {
         LabWork labWork = findLabWork(id);
         disciplineService.changeLabsCount(labWork.getDiscipline(), -1);
@@ -66,6 +69,9 @@ public class LabWorkService {
     }
 
     private LabWork findLabWork(Long id) {
+        if (id <= 0) {
+            throw new InvalidIdException("Некорректный id");
+        }
         return labWorkRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Лабораторная работа с id=" + id + " не найдена"));
     }
