@@ -1,6 +1,5 @@
 package org.example.bars.controller;
 
-import jakarta.validation.constraints.Positive;
 import org.example.bars.service.BarsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +16,13 @@ public class BarsController {
     }
 
     @PostMapping("/add")
-    public ResponseEntity<Void> add(@PathVariable("disciplineId") @Positive long disciplineId,
-                                    @PathVariable("labWorkId") @Positive long labWorkId) {
+    public ResponseEntity<Void> add(@PathVariable("disciplineId") Long disciplineId, @PathVariable("labWorkId") Long labWorkId) {
         barsService.addLabWork(disciplineId, labWorkId);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/remove")
-    public ResponseEntity<Void> remove(@PathVariable("disciplineId") @Positive long disciplineId,
-                                       @PathVariable("labWorkId") @Positive long labWorkId) {
+    public ResponseEntity<Void> remove(@PathVariable("disciplineId") Long disciplineId, @PathVariable("labWorkId") Long labWorkId) {
         barsService.removeLabWork(disciplineId, labWorkId);
         return ResponseEntity.ok().build();
     }

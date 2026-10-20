@@ -7,6 +7,7 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class LabsApiClient {
+
     private final RestClient labsRestClient;
 
     @Autowired
@@ -19,6 +20,13 @@ public class LabsApiClient {
                 .uri("/lab-works/{id}", id)
                 .retrieve()
                 .body(LabWorkDto.class);
+    }
+
+    public void checkDisciplineExists(long id) {
+        labsRestClient.get()
+                .uri("/disciplines/{id}", id)
+                .retrieve()
+                .toBodilessEntity();
     }
 
     public void updateLabWork(long id, LabWorkDto labWork) {

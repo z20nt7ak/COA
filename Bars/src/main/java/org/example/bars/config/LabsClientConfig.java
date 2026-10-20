@@ -13,13 +13,8 @@ public class LabsClientConfig {
 
     @Bean
     public RestClient labsRestClient(@Value("${labs.api.url}") String labsUrl) {
-        HttpClient httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .build();
-
         return RestClient.builder()
                 .baseUrl(labsUrl)
-                .requestFactory(new JdkClientHttpRequestFactory(httpClient))
                 .build();
     }
 }
