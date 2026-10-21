@@ -7,6 +7,17 @@ servers:
 
 paths:
   /lab-works:
+    get:
+      description: "Получить все существующие лабораторные работы для выбора в форме связей. Порядок: name по возрастанию, затем id. Для пустой коллекции возвращается пустой массив."
+      responses:
+        "200":
+          description: "Список лабораторных работ с текущими дисциплинами"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LabWork"
     post:
       description: "Добавить новую лабораторную"
       requestBody:
@@ -30,6 +41,17 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   /disciplines:
+    get:
+      description: "Получить все существующие дисциплины для выбора в форме. Порядок: name по возрастанию, затем id. Для пустого каталога возвращается пустой массив."
+      responses:
+        "200":
+          description: "Список дисциплин"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Discipline"
     post:
       description: "Добавить новую дисциплину"
       requestBody:
@@ -286,7 +308,7 @@ paths:
 
   /lab-works/by-min-id:
     get:
-      description: "Вернуть лабораторную работу с наименьшим id"
+      description: "Вернуть лабораторную работу с наименьшим id во всей коллекции. Для пустой коллекции — 404."
       responses:
         "200":
           description: "Лабораторная работа найдена"
@@ -303,7 +325,7 @@ paths:
 
   /lab-works/by-max-difficulty:
     get:
-      description: "Вернуть лабораторную работу с максимальным значением difficulty"
+      description: "Вернуть работу с максимальной сложностью во всей коллекции: VERY_EASY < EASY < VERY_HARD < TERRIBLE. Работы с difficulty=null исключаются. При равной сложности возвращается работа с наименьшим id. При отсутствии работ с заданной сложностью — 404."
       responses:
         "200":
           description: "Лабораторная работа найдена"
@@ -312,7 +334,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/LabWork"
         "404":
-          description: "Нет лабораторных работ"
+          description: "Нет лабораторных работ с заданной сложностью"
           content:
             application/json:
               schema:
@@ -320,7 +342,7 @@ paths:
 
   /lab-works/group-by-name:
     get:
-      description: "Сгруппировать лабораторные работы по полю name и вернуть количество элементов в каждой группе"
+      description: "Сгруппировать все лабораторные работы по точному значению name с учётом регистра и вернуть количество элементов в каждой группе. Группы отсортированы по name по возрастанию. Для пустой коллекции — 404."
       responses:
         "200":
           description: "Результат группировки получен"
@@ -463,194 +485,122 @@ components:
           $ref: "#/components/schemas/ExistingDiscipline"
           nullable: true
 
+    SortCriterion:
+      type: object
+      required: [field, direction]
+      properties:
+        field: {type: string}
+        direction: {type: string, enum: [asc, desc]}
+
     LabWorkSearchRequest:
       type: object
+      description: >-
+        Все условия объединяются через AND, массивы идентификаторов означают IN.
+        name и disciplineName ищутся по подстроке без учёта регистра; %, _ и обратная косая черта — обычные символы.
+        Числовые границы включительны, даты означают полные дни UTC.
+        Нижняя граница больше верхней и противоречивые has-фильтры дают 400.
+        sort задаёт упорядоченный список критериев и имеет приоритет над sortBy/sortType.
+        При равных значениях добавляется id ASC, null располагаются в конце.
+        difficulty сортируется как VERY_EASY < EASY < VERY_HARD < TERRIBLE.
+        Неизвестные и повторяющиеся поля сортировки дают 400.
+        Максимальное смещение страницы — 2147483647.
       properties:
-        page:
-          type: integer
-          minimum: 1
-
-        size:
-          type: integer
-          minimum: 1
-
+        page: {type: integer, minimum: 1, default: 1}
+        size: {type: integer, minimum: 1, maximum: 100, default: 10}
         sortBy:
           type: string
-          enum:
-            - id
-            - name
-            - creationDate
-            - minimalPoint
-            - difficulty
-
-        sortType:
-          type: string
-          enum:
-            - asc
-            - desc
-
+          default: id
+          enum: [id, name, creationDate, minimalPoint, difficulty, coordinates.x, coordinates.y, discipline.id, discipline.name, discipline.practiceHours, discipline.labsCount]
+        sortType: {type: string, enum: [asc, desc], default: asc}
+        sort:
+          type: array
+          minItems: 1
+          maxItems: 12
+          description: Поля field из перечисления sortBy. Применяются по порядку.
+          items: {$ref: '#/components/schemas/SortCriterion'}
         id:
           type: array
-          items:
-            type: integer
-            format: int64
-            minimum: 1
-
-        name:
-          type: string
-
-        xFrom:
-          type: integer
-          format: int32
-
-        xTo:
-          type: integer
-          format: int32
-
-        yFrom:
-          type: number
-          format: double
-
-        yTo:
-          type: number
-          format: double
-
-        creationDateFrom:
-          type: string
-          format: date
-
-        creationDateTo:
-          type: string
-          format: date
-
-        minimalPointFrom:
-          type: integer
-          format: int32
-          minimum: 1
-
-        minimalPointTo:
-          type: integer
-          format: int32
-          minimum: 1
-
-        difficulty:
-          type: string
-          enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]
-
+          minItems: 1
+          maxItems: 1000
+          items: {type: integer, format: int64, minimum: 1}
+        name: {type: string}
+        xFrom: {type: integer, format: int32}
+        xTo: {type: integer, format: int32}
+        yFrom: {type: number, format: double}
+        yTo: {type: number, format: double}
+        creationDateFrom: {type: string, format: date}
+        creationDateTo: {type: string, format: date}
+        minimalPointFrom: {type: integer, format: int32, minimum: 1}
+        minimalPointTo: {type: integer, format: int32, minimum: 1}
+        difficulty: {type: string, enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]}
+        hasDifficulty: {type: boolean, description: 'true — сложность задана; false — не задана'}
+        hasDiscipline: {type: boolean, description: 'true — дисциплина задана; false — не задана'}
         disciplineIds:
           type: array
-          uniqueItems: true
-          items:
-            type: integer
-            format: int64
-            minimum: 1
+          minItems: 1
+          maxItems: 1000
+          items: {type: integer, format: int64, minimum: 1}
+        disciplineName: {type: string}
+        disciplinePracticeHoursFrom: {type: integer, format: int64, minimum: 0}
+        disciplinePracticeHoursTo: {type: integer, format: int64, minimum: 0}
+        disciplineLabsCountFrom: {type: integer, format: int64, minimum: 0}
+        disciplineLabsCountTo: {type: integer, format: int64, minimum: 0}
 
     DisciplineSearchRequest:
       type: object
+      description: >-
+        Все условия объединяются через AND; ids означает IN. name — подстрока без учёта регистра,
+        специальные символы LIKE считаются обычными символами. Границы диапазонов включительны.
+        sort имеет приоритет над sortBy/sortDirection. При равных значениях добавляется id ASC.
+        Диапазон from > to, неизвестные и повторные поля сортировки дают 400.
+        Максимальное смещение страницы — 2147483647.
       properties:
-        page:
-          type: integer
-          minimum: 1
-          default: 1
-
-        size:
-          type: integer
-          minimum: 1
-          default: 10
-
-        sortBy:
-          type: string
-          enum:
-            - id
-            - name
-            - practiceHours
-            - labsCount
-
-        sortDirection:
-          type: string
-          enum:
-            - asc
-            - desc
-          default: asc
-
+        page: {type: integer, minimum: 1, default: 1}
+        size: {type: integer, minimum: 1, maximum: 100, default: 10}
+        sortBy: {type: string, enum: [id, name, practiceHours, labsCount], default: id}
+        sortDirection: {type: string, enum: [asc, desc], default: asc}
+        sort:
+          type: array
+          minItems: 1
+          maxItems: 12
+          description: Поля field из перечисления sortBy. Применяются по порядку.
+          items: {$ref: '#/components/schemas/SortCriterion'}
         ids:
           type: array
-          uniqueItems: true
-          items:
-            type: integer
-            format: int64
-            minimum: 1
-
-        name:
-          type: string
-
-        practiceHoursFrom:
-          type: integer
-          format: int64
-
-        practiceHoursTo:
-          type: integer
-          format: int64
-
-        labsCountFrom:
-          type: integer
-          format: int64
-          minimum: 0
-
-        labsCountTo:
-          type: integer
-          format: int64
-          minimum: 0
+          minItems: 1
+          maxItems: 1000
+          items: {type: integer, format: int64, minimum: 1}
+        name: {type: string}
+        practiceHoursFrom: {type: integer, format: int64, minimum: 0}
+        practiceHoursTo: {type: integer, format: int64, minimum: 0}
+        labsCountFrom: {type: integer, format: int64, minimum: 0}
+        labsCountTo: {type: integer, format: int64, minimum: 0}
 
     LabWorkPageResponse:
       type: object
+      required: [content, page, size, totalElements, totalPages]
+      description: totalElements и totalPages рассчитаны после фильтрации. Нет совпадений или страница за пределами результата — 200 с content=[]; для пустой выборки totalPages=0.
       properties:
         content:
           type: array
-          items:
-            $ref: "#/components/schemas/LabWork"
-
-        page:
-          type: integer
-          minimum: 1
-
-        size:
-          type: integer
-          minimum: 1
-
-        totalElements:
-          type: integer
-          format: int64
-          minimum: 0
-
-        totalPages:
-          type: integer
-          minimum: 0
+          items: {$ref: '#/components/schemas/LabWork'}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
 
     DisciplinePageResponse:
       type: object
+      required: [content, page, size, totalElements, totalPages]
+      description: totalElements и totalPages рассчитаны после фильтрации. Нет совпадений или страница за пределами результата — 200 с content=[]; для пустой выборки totalPages=0.
       properties:
         content:
           type: array
-          items:
-            $ref: "#/components/schemas/Discipline"
-
-        page:
-          type: integer
-          minimum: 1
-
-        size:
-          type: integer
-          minimum: 1
-
-        totalElements:
-          type: integer
-          format: int64
-          minimum: 0
-
-        totalPages:
-          type: integer
-          minimum: 0
+          items: {$ref: '#/components/schemas/Discipline'}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
 
     ExistingDiscipline:
       type: object

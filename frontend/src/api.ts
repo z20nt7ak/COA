@@ -1,4 +1,4 @@
-import type { Resource, Entity, Page, LabInput, DisciplineInput } from './types';
+import type { Resource, Entity, Page, LabInput, DisciplineInput, LabWork, NameGroup, Discipline } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); this.name = 'ApiError'; }
@@ -31,6 +31,11 @@ export async function request<T>(service: 'labs' | 'bars', path: string, method 
   return data as T;
 }
 export const api = {
+  labWorks: (signal?: AbortSignal) => request<LabWork[]>('labs', '/lab-works', 'GET', undefined, signal),
+  disciplines: (signal?: AbortSignal) => request<Discipline[]>('labs', '/disciplines', 'GET', undefined, signal),
+  minId: (signal?: AbortSignal) => request<LabWork>('labs', '/lab-works/by-min-id', 'GET', undefined, signal),
+  maxDifficulty: (signal?: AbortSignal) => request<LabWork>('labs', '/lab-works/by-max-difficulty', 'GET', undefined, signal),
+  groupByName: (signal?: AbortSignal) => request<NameGroup[]>('labs', '/lab-works/group-by-name', 'GET', undefined, signal),
   get: (resource: Resource, id: number) => request<Entity>('labs', `/${resource}/${id}`),
   search: (resource: Resource, body: unknown, signal?: AbortSignal) => request<Page<Entity>>('labs', `/${resource}/search`, 'POST', body, signal),
   save: (resource: Resource, body: LabInput | DisciplineInput, id?: number) => request<Entity>('labs', `/${resource}${id ? `/${id}` : ''}`, id ? 'PUT' : 'POST', body),

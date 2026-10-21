@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { ArrowRight, Link2, RefreshCw, Unlink, X } from 'lucide-react';
 import { api } from './api';
 import { positiveId } from './search';
-import { difficulties, difficultyLabels, isLab, type Entity, type LabInput, type DisciplineInput, type Resource } from './types';
+import { difficulties, difficultyLabels, isLab, type Entity, type LabInput, type DisciplineInput, type Resource, type Discipline, type LabWork } from './types';
 
 export const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить действие.';
 export function Modal({ title, children, close, busy = false }: { title: string; children: ReactNode; close: () => void; busy?: boolean }) {
@@ -20,8 +20,29 @@ export function EntityForm({ resource, entity, close, saved }: { resource: Resou
   const existingDiscipline = entity && !isLab(entity) ? entity : undefined;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [disciplines, setDisciplines] = useState<Discipline[]>([]);
+  const [disciplineId, setDisciplineId] = useState(String(existingLab?.discipline?.id ?? ''));
+  const [loadingDisciplines, setLoadingDisciplines] = useState(lab);
+  const [disciplineError, setDisciplineError] = useState('');
+  const [retryDisciplines, setRetryDisciplines] = useState(0);
+  useEffect(() => {
+    if (!lab) return;
+    const controller = new AbortController();
+    setLoadingDisciplines(true); setDisciplineError('');
+    api.disciplines(controller.signal).then(items => {
+      if (controller.signal.aborted) return;
+      if (!Array.isArray(items)) throw new Error('Сервис вернул неверный формат списка дисциплин.');
+      setDisciplines(items);
+    }).catch(error => {
+      if (!controller.signal.aborted) setDisciplineError(messageOf(error));
+    }).finally(() => { if (!controller.signal.aborted) setLoadingDisciplines(false); });
+    return () => controller.abort();
+  }, [lab, retryDisciplines]);
+  const unavailableDiscipline = !!disciplineId && !disciplines.some(item => String(item.id) === disciplineId);
+  const cannotSave = busy || (lab && (loadingDisciplines || !!disciplineError || unavailableDiscipline));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
+    if (cannotSave) return;
     const data = new FormData(event.currentTarget);
     const number = (key: string) => Number(data.get(key));
     const name = String(data.get('name')).trim();
@@ -51,12 +72,19 @@ export function EntityForm({ resource, entity, close, saved }: { resource: Resou
         {lab ? <>
           <div className="form-grid"><label>Координата X<input name="x" type="number" required step="1" min="-2147483648" max="2147483647" defaultValue={existingLab?.coordinates.x ?? 0} /></label><label>Координата Y<input name="y" type="number" required step="any" defaultValue={existingLab?.coordinates.y ?? 0} /></label></div>
           <div className="form-grid"><label>Минимальный балл<input name="minimalPoint" type="number" required min="1" max="2147483647" step="1" defaultValue={existingLab?.minimalPoint ?? 1} /></label><label>Сложность<select name="difficulty" defaultValue={existingLab?.difficulty ?? ''}><option value="">Не задана</option>{difficulties.map(value => <option key={value} value={value}>{difficultyLabels[value]}</option>)}</select></label></div>
-          <label>ID дисциплины <span className="optional">необязательно</span><input name="discipline" inputMode="numeric" pattern="[0-9]+" defaultValue={existingLab?.discipline?.id ?? ''} placeholder="Оставьте пустым, чтобы не привязывать" /></label>
-          <p className="field-hint">Дисциплина должна существовать. ID и дата создания назначаются автоматически.</p>
-        </> : <><label>Часы практики<input name="practiceHours" type="number" min="0" max={Number.MAX_SAFE_INTEGER} step="1" required defaultValue={existingDiscipline?.practiceHours ?? 0} /></label><p className="field-hint">Количество лабораторных рассчитывается бэкендом при привязке работ.</p></>}
+          <label>Дисциплина <span className="optional">необязательно</span><select aria-label="Дисциплина" name="discipline" value={disciplineId} disabled={loadingDisciplines || !!disciplineError} onChange={event => setDisciplineId(event.target.value)}>
+            <option value="">{loadingDisciplines ? 'Загрузка дисциплин…' : 'Без дисциплины'}</option>
+            {unavailableDiscipline && <option value={disciplineId} disabled>{existingLab?.discipline?.name ?? 'Текущая дисциплина'} — недоступна</option>}
+            {disciplines.map(item => <option key={item.id} value={item.id}>{item.name} · №{item.id}</option>)}
+          </select></label>
+          {!loadingDisciplines && !disciplineError && disciplines.length === 0 && <p className="field-hint">Дисциплин пока нет. Создайте их в разделе «Дисциплины» или сохраните работу без привязки.</p>}
+          {!loadingDisciplines && !disciplineError && unavailableDiscipline && <p className="field-hint">Текущей дисциплины больше нет в списке. Выберите другую или «Без дисциплины».</p>}
+
+        </> : <><label>Часы практики<input name="practiceHours" type="number" min="0" max={Number.MAX_SAFE_INTEGER} step="1" required defaultValue={existingDiscipline?.practiceHours ?? 0} /></label></>}
       </fieldset>
+      {lab && disciplineError && <div className="alert error" role="alert">Не удалось загрузить дисциплины: {disciplineError}<button type="button" className="text-button" disabled={busy} onClick={() => setRetryDisciplines(value => value + 1)}>Повторить загрузку</button></div>}
       {error && <div className="alert error" role="alert">{error}</div>}
-      <div className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={close}>Отмена</button><button className="button primary" disabled={busy}>{busy ? 'Сохранение…' : 'Сохранить'}</button></div>
+      <div className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={close}>Отмена</button><button className="button primary" disabled={cannotSave}>{busy ? 'Сохранение…' : 'Сохранить'}</button></div>
     </form>
   </Modal>;
 }
@@ -78,23 +106,59 @@ export function DeleteDialog({ resource, entity, close, deleted }: { resource: R
 export function LinkPanel({ changed }: { changed: (labId: number, disciplineId: number) => Promise<void> }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const [action, setAction] = useState<'add' | 'remove'>('add');
+  const [labs, setLabs] = useState<LabWork[]>([]), [disciplines, setDisciplines] = useState<Discipline[]>([]);
+  const [labId, setLabId] = useState(''), [disciplineId, setDisciplineId] = useState('');
+  const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState('');
+  const controller = useRef<AbortController | null>(null);
+  async function load() {
+    controller.current?.abort();
+    const request = new AbortController(); controller.current = request;
+    setLoading(true); setLoadError('');
+    try {
+      const [labs, disciplines] = await Promise.all([api.labWorks(request.signal), api.disciplines(request.signal)]);
+      if (request.signal.aborted) return;
+      if (!Array.isArray(labs) || !Array.isArray(disciplines)) throw new Error('Неверный формат списков от сервера.');
+      setLabs(labs); setDisciplines(disciplines);
+      setLabId(''); setDisciplineId('');
+    } catch (error) { if (!request.signal.aborted) setLoadError(messageOf(error)); }
+    finally { if (!request.signal.aborted) setLoading(false); }
+  }
+  useEffect(() => { void load(); return () => controller.current?.abort(); }, []);
+  const eligibleLabs = labs.filter(lab => action === 'add' ? !lab.discipline : !!lab.discipline);
+  const selectedLab = eligibleLabs.find(lab => String(lab.id) === labId);
+  const selectableDisciplines = action === 'remove'
+    ? disciplines.filter(discipline => discipline.id === selectedLab?.discipline?.id) : disciplines;
+  const selectedDiscipline = selectableDisciplines.find(discipline => String(discipline.id) === disciplineId);
+  const cannotSubmit = busy || loading || !!loadError || !selectedLab || !selectedDiscipline;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setSuccess('');
-    const data = new FormData(event.currentTarget);
+    if (cannotSubmit) return;
+    const lab = selectedLab.id, discipline = selectedDiscipline.id;
     try {
-      const labId = positiveId(String(data.get('labId'))), disciplineId = positiveId(String(data.get('disciplineId')));
-      setBusy(true); await api.link(disciplineId, labId, action);
-      setSuccess(action === 'add' ? `Работа №${labId} добавлена в дисциплину №${disciplineId}.` : `Работа №${labId} отвязана от дисциплины №${disciplineId}.`);
-      await changed(labId, disciplineId);
+      setBusy(true); await api.link(discipline, lab, action);
+      setSuccess(action === 'add' ? `«${selectedLab.name}» добавлена в дисциплину «${selectedDiscipline.name}».` : `«${selectedLab.name}» отвязана от дисциплины «${selectedDiscipline.name}».`);
+      await load();
+      try { await changed(lab, discipline); }
+      catch { setError('Связь изменена, но данные каталога не удалось обновить.'); }
     } catch (error) { setError(messageOf(error)); } finally { setBusy(false); }
   }
-  return <div className="link-layout"><section className="card link-card"><div className="section-eyebrow">СВЯЗИ МЕЖДУ ОБЪЕКТАМИ</div><h2>Соберите программу дисциплины</h2><p className="muted">Добавляйте лабораторные работы в учебную программу или освобождайте их для другой дисциплины.</p>
-    <form onSubmit={submit}><fieldset disabled={busy} className="form-fields">
-      <div className="segmented"><button type="button" className={action === 'add' ? 'selected' : ''} onClick={() => { setAction('add'); setSuccess(''); setError(''); }}>Привязать работу</button><button type="button" className={action === 'remove' ? 'selected' : ''} onClick={() => { setAction('remove'); setSuccess(''); setError(''); }}>Отвязать работу</button></div>
-      <label>ID лабораторной<input name="labId" inputMode="numeric" pattern="[0-9]+" required placeholder="Например, 12" /></label>
-      <label>ID дисциплины<input name="disciplineId" inputMode="numeric" pattern="[0-9]+" required placeholder="Например, 3" /></label>
-      <button className="button primary" disabled={busy}>{busy ? 'Выполнение…' : action === 'add' ? 'Добавить в программу' : 'Удалить из программы'}</button>
+  return <div className="link-layout"><section className="card link-card">
+    <div className="link-heading"><h2>Связи</h2><button type="button" className="button secondary" disabled={busy || loading} onClick={() => void load()}><RefreshCw size={16} className={loading ? 'spin' : ''} />{loadError ? 'Повторить загрузку списков' : 'Обновить списки'}</button></div>
+    <form onSubmit={submit}><fieldset disabled={busy || loading} className="form-fields">
+      <div className="segmented" aria-label="Операция со связью">{(['add', 'remove'] as const).map(value => <button key={value} type="button" aria-pressed={action === value} className={action === value ? 'selected' : ''} onClick={() => { setAction(value); setLabId(''); setDisciplineId(''); setSuccess(''); setError(''); }}>{value === 'add' ? <Link2 size={17} /> : <Unlink size={17} />}{value === 'add' ? 'Привязать работу' : 'Отвязать работу'}</button>)}</div>
+      <div className="link-fields"><div className="link-field"><label><span className="link-field-label"><span className="step-number" aria-hidden="true">1</span>Лабораторная работа</span><select aria-label="Лабораторная работа" required value={labId} disabled={!!loadError} onChange={event => {
+        setLabId(event.target.value);
+        if (action === 'remove') setDisciplineId(String(eligibleLabs.find(lab => String(lab.id) === event.target.value)?.discipline?.id ?? ''));
+      }}><option value="">{loading ? 'Загрузка работ…' : 'Выберите лабораторную'}</option>{eligibleLabs.map(lab => <option key={lab.id} value={lab.id}>{lab.name} · №{lab.id}{lab.discipline ? ` · ${lab.discipline.name}` : ''}</option>)}</select></label>
+      {!loading && !loadError && eligibleLabs.length === 0 && <p className="field-hint">{action === 'add' ? 'Нет свободных лабораторных работ. Создайте работу без дисциплины или сначала отвяжите существующую.' : 'Нет лабораторных работ, привязанных к дисциплинам.'}</p>}
+      </div><div className="link-field"><label><span className="link-field-label"><span className="step-number" aria-hidden="true">2</span>Дисциплина</span><select aria-label="Дисциплина" required value={disciplineId} disabled={!!loadError || (action === 'remove' && !selectedLab)} onChange={event => setDisciplineId(event.target.value)}><option value="">{loading ? 'Загрузка дисциплин…' : 'Выберите дисциплину'}</option>{selectableDisciplines.map(discipline => <option key={discipline.id} value={discipline.id}>{discipline.name} · №{discipline.id}</option>)}</select></label>
+      {action === 'remove' && selectedLab && <p className="field-hint">Выбрана текущая дисциплина работы. Отвязать работу можно только от неё.</p>}
+      {!loading && !loadError && disciplines.length === 0 && <p className="field-hint">Дисциплин пока нет. Создайте их в разделе «Дисциплины».</p>}
+      </div></div>
+      {selectedLab && selectedDiscipline && <div className="link-summary"><span>{action === 'add' ? 'Привязать' : 'Отвязать'}</span><strong>{selectedLab.name} <small>№{selectedLab.id}</small></strong><ArrowRight size={17} /><strong>{selectedDiscipline.name} <small>№{selectedDiscipline.id}</small></strong></div>}
+      <div className="link-submit"><button className="button primary" disabled={cannotSubmit}>{busy ? <RefreshCw size={17} className="spin" /> : action === 'add' ? <Link2 size={17} /> : <Unlink size={17} />}{busy ? 'Выполнение…' : action === 'add' ? 'Добавить в программу' : 'Удалить из программы'}</button></div>
     </fieldset></form>
+    {loadError && <div className="alert error" role="alert">Не удалось загрузить списки: {loadError}</div>}
     {error && <div className="alert error" role="alert">{error}</div>}{success && <div className="alert success" role="status">{success}</div>}
-  </section><aside className="card note-card"><span className="note-icon">↗</span><h3>Одна работа — одна дисциплина</h3><p>Перед новой привязкой освободите лабораторную от предыдущей дисциплины.</p><hr /><h3>Счётчик обновляется автоматически</h3><p>После операции обновляются данные лабораторной и количество работ у дисциплины.</p><p className="field-hint">BARS проверяет связь и передаёт изменение сервису LABS.</p></aside></div>;
+  </section></div>;
 }

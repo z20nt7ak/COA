@@ -2,6 +2,10 @@ package org.example.labs.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.example.labs.dto.request.DisciplineRequestDto;
+import org.example.labs.dto.request.DisciplineSearchRequestDto;
+import org.example.labs.dto.response.PageResponseDto;
+import org.example.labs.search.SearchSpecifications;
+import org.springframework.data.domain.PageRequest;
 import org.example.labs.dto.response.DisciplineResponseDto;
 import org.example.labs.exceptions.DisciplineInUseException;
 import org.example.labs.exceptions.DisciplineNotExistsException;
@@ -11,6 +15,9 @@ import org.example.labs.models.Discipline;
 import org.example.labs.repository.DisciplineRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Sort;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
 @Service
 public class DisciplineService {
@@ -39,6 +46,18 @@ public class DisciplineService {
                     + ": к ней привязано лабораторных: " + discipline.getLabsCount());
         }
         disciplineRepository.delete(discipline);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DisciplineResponseDto> getDisciplines() {
+        return disciplineRepository.findAll(Sort.by("name").ascending().and(Sort.by("id")))
+                .stream().map(disciplineMapper::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponseDto<DisciplineResponseDto> search(DisciplineSearchRequestDto request) {
+        return PageResponseDto.from(disciplineRepository.findAll(SearchSpecifications.disciplines(request),
+                PageRequest.of(request.getPage() - 1, request.getSize())).map(disciplineMapper::toDto));
     }
 
     public DisciplineResponseDto getDiscipline(Long id) {

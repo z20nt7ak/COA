@@ -1,8 +1,10 @@
 package org.example.labs.controller;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Positive;
+import java.util.List;
 import org.example.labs.dto.request.DisciplineRequestDto;
+import org.example.labs.dto.request.DisciplineSearchRequestDto;
+import org.example.labs.dto.response.PageResponseDto;
 import org.example.labs.dto.response.DisciplineResponseDto;
 import org.example.labs.service.DisciplineService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,16 @@ public class DisciplineController {
     @ResponseStatus(HttpStatus.CREATED)
     public DisciplineResponseDto create(@Valid @RequestBody DisciplineRequestDto request) {
         return disciplineService.saveDiscipline(request);
+    }
+
+    @GetMapping
+    public List<DisciplineResponseDto> getAll() {
+        return disciplineService.getDisciplines();
+    }
+
+    @PostMapping("/search")
+    public PageResponseDto<DisciplineResponseDto> search(@Valid @RequestBody DisciplineSearchRequestDto request) {
+        return disciplineService.search(request);
     }
 
     @GetMapping("/{id}")

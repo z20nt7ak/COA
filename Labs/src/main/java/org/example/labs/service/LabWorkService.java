@@ -2,15 +2,22 @@ package org.example.labs.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.example.labs.dto.request.LabWorkRequestDto;
+import org.example.labs.dto.request.LabWorkSearchRequestDto;
+import org.example.labs.dto.response.PageResponseDto;
+import org.example.labs.search.SearchSpecifications;
 import org.example.labs.dto.response.LabWorkResponseDto;
+import org.example.labs.dto.response.NameGroupResponseDto;
 import org.example.labs.exceptions.InvalidIdException;
 import org.example.labs.mapper.LabWorkMapper;
 import org.example.labs.models.LabWork;
 import org.example.labs.repository.LabWorkRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 @Service
 public class LabWorkService {
@@ -41,6 +48,18 @@ public class LabWorkService {
         return labWorkMapper.toDto(saved);
     }
 
+    @Transactional(readOnly = true)
+    public List<LabWorkResponseDto> getLabWorks() {
+        return labWorkRepository.findAll(Sort.by("name").ascending().and(Sort.by("id")))
+                .stream().map(labWorkMapper::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponseDto<LabWorkResponseDto> search(LabWorkSearchRequestDto request) {
+        return PageResponseDto.from(labWorkRepository.findAll(SearchSpecifications.labs(request),
+                PageRequest.of(request.getPage() - 1, request.getSize())).map(labWorkMapper::toDto));
+    }
+
     public LabWorkResponseDto getLabWork(Long id) {
         LabWork labWork = findLabWork(id);
         return labWorkMapper.toDto(labWork);
@@ -66,6 +85,29 @@ public class LabWorkService {
         LabWork labWork = findLabWork(id);
         disciplineService.changeLabsCount(labWork.getDiscipline(), -1);
         labWorkRepository.delete(labWork);
+    }
+
+    @Transactional(readOnly = true)
+    public LabWorkResponseDto getByMinId() {
+        return labWorkRepository.findFirstByOrderByIdAsc()
+                .map(labWorkMapper::toDto)
+                .orElseThrow(() -> new EntityNotFoundException("Нет лабораторных работ"));
+    }
+
+    @Transactional(readOnly = true)
+    public LabWorkResponseDto getByMaxDifficulty() {
+        return labWorkRepository.findByMaximumDifficulty(PageRequest.of(0, 1)).stream()
+                .findFirst().map(labWorkMapper::toDto)
+                .orElseThrow(() -> new EntityNotFoundException("Нет лабораторных работ с заданной сложностью"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<NameGroupResponseDto> groupByName() {
+        List<NameGroupResponseDto> groups = labWorkRepository.countGroupedByName();
+        if (groups.isEmpty()) {
+            throw new EntityNotFoundException("Нет лабораторных работ");
+        }
+        return groups;
     }
 
     private LabWork findLabWork(Long id) {

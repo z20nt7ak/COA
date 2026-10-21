@@ -27,7 +27,7 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Некорректное тело запроса");
     }
 
-    @ExceptionHandler({InvalidIdException.class, DisciplineNotExistsException.class, DisciplineInUseException.class})
+    @ExceptionHandler({InvalidIdException.class, DisciplineNotExistsException.class, DisciplineInUseException.class, InvalidSearchException.class})
     public ResponseEntity<ErrorResponseDto> handleBadRequest(RuntimeException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
     }
