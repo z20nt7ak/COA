@@ -1,9 +1,15 @@
 openapi: "3.0.3"
 info:
-  title: Лабораторная работа №1
-  version: "1.0"
+  title: LABS — лабораторные работы и дисциплины
+  version: "2.0"
+  description: >-
+    Контракт соответствует контроллерам и DTO модуля Labs.
+    Фильтрация, сортировка и пагинация выполняются сервером через POST /lab-works/search
+    и POST /disciplines/search. GET коллекций возвращает все записи для списков выбора
+    и не принимает параметры поиска или пагинации.
 servers:
-  - url: https://176.12.70.243:8081
+  - url: http://localhost:8080/labs
+    description: LABS в Payara (docker compose)
 
 paths:
   /lab-works:
@@ -59,7 +65,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Discipline"
+              $ref: "#/components/schemas/DisciplineRequest"
       responses:
         "201":
           description: "Дисциплина успешно добавлена"
@@ -213,7 +219,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Discipline"
+              $ref: "#/components/schemas/DisciplineRequest"
       responses:
         "200":
           description: "Дисциплина успешно обновлена"
@@ -262,13 +268,40 @@ paths:
 
   /lab-works/search:
     post:
-      description: "Поиск, фильтрация, сортировка и постраничный вывод лабораторных работ"
+      operationId: searchLabWorks
+      summary: Поиск лабораторных работ
+      description: >-
+        Сервер объединяет фильтры через AND, сортирует результат и возвращает только запрошенную страницу.
+        totalElements и totalPages относятся ко всей отфильтрованной выборке до пагинации.
+        Тело обязательно; {} возвращает первую страницу из 10 записей с сортировкой id ASC.
+        Отсутствие совпадений и страница за пределами результата возвращают 200 с content=[].
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/LabWorkSearchRequest"
+            examples:
+              defaults:
+                summary: Первая страница без фильтров
+                value: {}
+              filtered:
+                summary: Фильтры и несколько критериев сортировки
+                value:
+                  page: 2
+                  size: 5
+                  name: отчет
+                  minimalPointFrom: 10
+                  hasDiscipline: true
+                  disciplineIds: [1, 2]
+                  creationDateFrom: '2026-10-01'
+                  creationDateTo: '2026-10-31'
+                  sort:
+                    - {field: difficulty, direction: desc}
+                    - {field: name, direction: asc}
+              unlinked:
+                summary: Работы без дисциплины, одиночная сортировка
+                value: {page: 1, size: 10, hasDiscipline: false, sortBy: creationDate, sortType: desc}
       responses:
         "200":
           description: "Результаты поиска получены"
@@ -276,22 +309,54 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LabWorkPageResponse"
+              examples:
+                empty:
+                  summary: Нет совпадений
+                  value: {content: [], page: 1, size: 10, totalElements: 0, totalPages: 0}
         "400":
-          description: "Переданы некорректные параметры поиска"
+          description: >-
+            Некорректное или отсутствующее JSON-тело, нарушение ограничений DTO,
+            диапазон from > to, противоречивые фильтры, недопустимая сортировка
+            или смещение (page - 1) * size > 2147483647.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              example: {status: 400, error: Bad Request, message: 'x: нижняя граница больше верхней'}
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
 
   /disciplines/search:
     post:
-      description: "Поиск, фильтрация, сортировка и постраничный вывод дисциплин"
+      operationId: searchDisciplines
+      summary: Поиск дисциплин
+      description: >-
+        Сервер фильтрует и сортирует дисциплины, затем возвращает запрошенную страницу.
+        totalElements и totalPages вычисляются после фильтрации до пагинации.
+        Тело обязательно; {} означает page=1, size=10, id ASC.
+        Пустой результат и страница за его пределами возвращают 200 с content=[].
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/DisciplineSearchRequest"
+            examples:
+              defaults:
+                summary: Значения по умолчанию
+                value: {}
+              filtered:
+                summary: Диапазоны и одиночная сортировка
+                value: {page: 1, size: 5, name: физ, practiceHoursFrom: 10, practiceHoursTo: 100, labsCountFrom: 1, sortBy: practiceHours, sortDirection: desc}
+              multiSort:
+                summary: Несколько критериев по приоритету
+                value:
+                  page: 1
+                  size: 10
+                  ids: [1, 2]
+                  sort:
+                    - {field: labsCount, direction: DESC}
+                    - {field: name, direction: asc}
       responses:
         "200":
           description: "Результаты поиска получены"
@@ -299,12 +364,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DisciplinePageResponse"
+              examples:
+                page:
+                  summary: Вторая страница из двух
+                  value:
+                    content: [{id: 1, name: Физика, practiceHours: 20, labsCount: 3}]
+                    page: 2
+                    size: 1
+                    totalElements: 2
+                    totalPages: 2
+                outOfRange:
+                  summary: Запрошенная страница за пределами результата
+                  value: {content: [], page: 5, size: 1, totalElements: 2, totalPages: 2}
         "400":
-          description: "Переданы некорректные параметры поиска"
+          description: >-
+            Некорректное или отсутствующее JSON-тело, нарушение ограничений DTO,
+            диапазон from > to, недопустимая сортировка
+            или смещение (page - 1) * size > 2147483647.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              example: {status: 400, error: Bad Request, message: 'Недопустимое поле сортировки: difficulty'}
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
 
   /lab-works/by-min-id:
     get:
@@ -361,6 +444,13 @@ paths:
 
 # компоненты
 components:
+  responses:
+    UnsupportedMediaType:
+      description: Ожидается Content-Type application/json
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          example: {status: 415, error: Unsupported Media Type, message: 'Ожидается Content-Type: application/json'}
   schemas:
     LabWork:
       type: object
@@ -369,6 +459,7 @@ components:
         - name
         - coordinates
         - creationDate
+        - minimalPoint
       properties:
         id:
           type: integer
@@ -379,6 +470,7 @@ components:
         name:
           type: string
           minLength: 1
+          pattern: '\S'
 
         coordinates:
           $ref: "#/components/schemas/Coordinates"
@@ -396,7 +488,7 @@ components:
         difficulty:
           type: string
           nullable: true
-          enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]
+          enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE, null]
 
         discipline:
           allOf:
@@ -422,6 +514,7 @@ components:
       required:
         - id
         - name
+        - practiceHours
         - labsCount
       properties:
         id:
@@ -433,10 +526,12 @@ components:
         name:
           type: string
           minLength: 1
+          pattern: '\S'
 
         practiceHours:
           type: integer
           format: int64
+          minimum: 0
 
         labsCount:
           type: integer
@@ -463,10 +558,12 @@ components:
       required:
         - name
         - coordinates
+        - minimalPoint
       properties:
         name:
           type: string
           minLength: 1
+          pattern: '\S'
 
         coordinates:
           $ref: "#/components/schemas/Coordinates"
@@ -479,102 +576,195 @@ components:
         difficulty:
           type: string
           nullable: true
-          enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]
+          enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE, null]
 
         discipline:
-          $ref: "#/components/schemas/ExistingDiscipline"
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/ExistingDiscipline"
           nullable: true
 
-    SortCriterion:
+    DisciplineRequest:
+      type: object
+      required: [name, practiceHours]
+      description: id генерируется сервером, labsCount изменяется сервером при изменении связей.
+      properties:
+        name: {type: string, minLength: 1, pattern: '\S', description: Название не может состоять только из пробелов}
+        practiceHours: {type: integer, format: int64, minimum: 0}
+
+    SearchPage:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 2147483647
+      default: 1
+      description: >-
+        Номер страницы с 1. Смещение (page - 1) * size не должно превышать 2147483647,
+        иначе 400. За пределами результата страница не корректируется автоматически.
+
+    SearchSize:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 100
+      default: 10
+      description: Максимальное количество записей в content. null не допускается.
+
+    SortDirection:
+      type: string
+      minLength: 1
+      pattern: '^(?:[aA][sS][cC]|[dD][eE][sS][cC])$'
+      description: asc или desc без учёта регистра. Пробелы не допускаются.
+      example: asc
+
+    LabWorkSortField:
+      type: string
+      enum: [id, name, creationDate, minimalPoint, difficulty, coordinates.x, coordinates.y, discipline.id, discipline.name, discipline.practiceHours, discipline.labsCount]
+
+    DisciplineSortField:
+      type: string
+      enum: [id, name, practiceHours, labsCount]
+
+    LabWorkSortCriterion:
       type: object
       required: [field, direction]
       properties:
-        field: {type: string}
-        direction: {type: string, enum: [asc, desc]}
+        field: {$ref: '#/components/schemas/LabWorkSortField'}
+        direction: {$ref: '#/components/schemas/SortDirection'}
+
+    DisciplineSortCriterion:
+      type: object
+      required: [field, direction]
+      properties:
+        field: {$ref: '#/components/schemas/DisciplineSortField'}
+        direction: {$ref: '#/components/schemas/SortDirection'}
 
     LabWorkSearchRequest:
       type: object
       description: >-
         Все условия объединяются через AND, массивы идентификаторов означают IN.
-        name и disciplineName ищутся по подстроке без учёта регистра; %, _ и обратная косая черта — обычные символы.
-        Числовые границы включительны, даты означают полные дни UTC.
-        Нижняя граница больше верхней и противоречивые has-фильтры дают 400.
+        name и disciplineName ищутся по подстроке без учёта регистра после trim;
+        пустые и состоящие только из пробелов строки не добавляют условие.
+        %, _ и обратная косая черта — обычные символы.
+        Числовые границы включительны; любая граница может задаваться отдельно.
+        creationDateFrom включается с 00:00 UTC, creationDateTo включает весь день до 00:00 следующего дня.
+        Нижняя граница больше верхней даёт 400.
+        hasDifficulty=false вместе с difficulty даёт 400.
+        hasDiscipline=false вместе с disciplineIds, непустым disciplineName или границами полей дисциплины даёт 400.
+        Отсутствующие фильтры и фильтры со значением null не ограничивают выборку.
         sort задаёт упорядоченный список критериев и имеет приоритет над sortBy/sortType.
-        При равных значениях добавляется id ASC, null располагаются в конце.
+        Если sort отсутствует или равен null, используются sortBy и sortType.
+        id ASC добавляется последним критерием, только если id ещё не указан.
+        null располагаются в конце при обоих направлениях сортировки.
         difficulty сортируется как VERY_EASY < EASY < VERY_HARD < TERRIBLE.
-        Неизвестные и повторяющиеся поля сортировки дают 400.
-        Максимальное смещение страницы — 2147483647.
+        Имена полей сортировки чувствительны к регистру, направления — нет.
+        Неизвестные и повторяющиеся поля применяемой сортировки дают 400.
+        page, size, sortBy и sortType можно опустить, но нельзя передавать null.
+        Непустой sort не отменяет проверку NotBlank для sortBy и проверку направления sortType.
       properties:
-        page: {type: integer, minimum: 1, default: 1}
-        size: {type: integer, minimum: 1, maximum: 100, default: 10}
+        page: {$ref: '#/components/schemas/SearchPage'}
+        size: {$ref: '#/components/schemas/SearchSize'}
         sortBy:
           type: string
+          minLength: 1
+          pattern: '\S'
           default: id
-          enum: [id, name, creationDate, minimalPoint, difficulty, coordinates.x, coordinates.y, discipline.id, discipline.name, discipline.practiceHours, discipline.labsCount]
-        sortType: {type: string, enum: [asc, desc], default: asc}
+          description: >-
+            При отсутствии sort — поле из LabWorkSortField (id, name, creationDate, minimalPoint,
+            difficulty, coordinates.x, coordinates.y, discipline.id, discipline.name,
+            discipline.practiceHours, discipline.labsCount). При заданном sort значение игнорируется,
+            но строка должна оставаться непустой и не состоять только из пробелов.
+        sortType:
+          allOf: [{$ref: '#/components/schemas/SortDirection'}]
+          default: asc
+          description: Направление одиночной сортировки; при заданном sort не применяется, но валидируется.
         sort:
           type: array
+          nullable: true
           minItems: 1
           maxItems: 12
-          description: Поля field из перечисления sortBy. Применяются по порядку.
-          items: {$ref: '#/components/schemas/SortCriterion'}
+          description: Критерии применяются по порядку массива. Поле field нельзя повторять; элементы null запрещены. Пустой массив даёт 400.
+          items: {$ref: '#/components/schemas/LabWorkSortCriterion'}
         id:
           type: array
+          nullable: true
           minItems: 1
           maxItems: 1000
+          description: Идентификаторы лабораторных работ (IN). Название параметра именно id; в поиске дисциплин используется ids.
           items: {type: integer, format: int64, minimum: 1}
-        name: {type: string}
-        xFrom: {type: integer, format: int32}
-        xTo: {type: integer, format: int32}
-        yFrom: {type: number, format: double}
-        yTo: {type: number, format: double}
-        creationDateFrom: {type: string, format: date}
-        creationDateTo: {type: string, format: date}
-        minimalPointFrom: {type: integer, format: int32, minimum: 1}
-        minimalPointTo: {type: integer, format: int32, minimum: 1}
-        difficulty: {type: string, enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE]}
-        hasDifficulty: {type: boolean, description: 'true — сложность задана; false — не задана'}
-        hasDiscipline: {type: boolean, description: 'true — дисциплина задана; false — не задана'}
+        name: {type: string, nullable: true, description: Подстрока названия лабораторной работы}
+        xFrom: {type: integer, format: int32, nullable: true}
+        xTo: {type: integer, format: int32, nullable: true}
+        yFrom: {type: number, format: double, nullable: true, description: Только конечное число}
+        yTo: {type: number, format: double, nullable: true, description: Только конечное число}
+        creationDateFrom: {type: string, format: date, nullable: true, example: '2026-10-01'}
+        creationDateTo: {type: string, format: date, nullable: true, example: '2026-10-31'}
+        minimalPointFrom: {type: integer, format: int32, minimum: 1, nullable: true}
+        minimalPointTo: {type: integer, format: int32, minimum: 1, nullable: true}
+        difficulty: {type: string, nullable: true, enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE, null], description: Точное значение сложности}
+        hasDifficulty: {type: boolean, nullable: true, description: 'true — сложность задана; false — не задана; null — без условия'}
+        hasDiscipline: {type: boolean, nullable: true, description: 'true — дисциплина задана; false — не задана; null — без условия'}
         disciplineIds:
           type: array
+          nullable: true
           minItems: 1
           maxItems: 1000
+          description: Идентификаторы связанных дисциплин (IN)
           items: {type: integer, format: int64, minimum: 1}
-        disciplineName: {type: string}
-        disciplinePracticeHoursFrom: {type: integer, format: int64, minimum: 0}
-        disciplinePracticeHoursTo: {type: integer, format: int64, minimum: 0}
-        disciplineLabsCountFrom: {type: integer, format: int64, minimum: 0}
-        disciplineLabsCountTo: {type: integer, format: int64, minimum: 0}
+        disciplineName: {type: string, nullable: true, description: Подстрока названия связанной дисциплины}
+        disciplinePracticeHoursFrom: {type: integer, format: int64, minimum: 0, nullable: true}
+        disciplinePracticeHoursTo: {type: integer, format: int64, minimum: 0, nullable: true}
+        disciplineLabsCountFrom: {type: integer, format: int64, minimum: 0, nullable: true}
+        disciplineLabsCountTo: {type: integer, format: int64, minimum: 0, nullable: true}
 
     DisciplineSearchRequest:
       type: object
       description: >-
-        Все условия объединяются через AND; ids означает IN. name — подстрока без учёта регистра,
-        специальные символы LIKE считаются обычными символами. Границы диапазонов включительны.
-        sort имеет приоритет над sortBy/sortDirection. При равных значениях добавляется id ASC.
-        Диапазон from > to, неизвестные и повторные поля сортировки дают 400.
-        Максимальное смещение страницы — 2147483647.
+        Все условия объединяются через AND; ids означает IN. name — подстрока без учёта регистра после trim;
+        пустая и состоящая только из пробелов строка не ограничивает выборку.
+        %, _ и обратная косая черта считаются обычными символами. Границы диапазонов включительны,
+        любую границу можно задать отдельно. Отсутствующие фильтры и null не ограничивают выборку.
+        sort имеет приоритет над sortBy/sortDirection; при отсутствии sort или sort=null используется одиночная сортировка.
+        id ASC добавляется последним критерием, только если id ещё не указан. null всегда в конце.
+        Имена полей сортировки чувствительны к регистру, направления — нет.
+        Диапазон from > to, неизвестные и повторные поля применяемой сортировки дают 400.
+        page, size, sortBy и sortDirection можно опустить, но нельзя передавать null.
+        Непустой sort не отменяет проверку NotBlank для sortBy и проверку направления sortDirection.
       properties:
-        page: {type: integer, minimum: 1, default: 1}
-        size: {type: integer, minimum: 1, maximum: 100, default: 10}
-        sortBy: {type: string, enum: [id, name, practiceHours, labsCount], default: id}
-        sortDirection: {type: string, enum: [asc, desc], default: asc}
+        page: {$ref: '#/components/schemas/SearchPage'}
+        size: {$ref: '#/components/schemas/SearchSize'}
+        sortBy:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          default: id
+          description: >-
+            При отсутствии sort — поле из DisciplineSortField (id, name, practiceHours, labsCount).
+            При заданном sort значение игнорируется, но строка должна оставаться непустой
+            и не состоять только из пробелов.
+        sortDirection:
+          allOf: [{$ref: '#/components/schemas/SortDirection'}]
+          default: asc
+          description: Направление одиночной сортировки; при заданном sort не применяется, но валидируется.
         sort:
           type: array
+          nullable: true
           minItems: 1
           maxItems: 12
-          description: Поля field из перечисления sortBy. Применяются по порядку.
-          items: {$ref: '#/components/schemas/SortCriterion'}
+          description: Критерии применяются по порядку массива. Поле field нельзя повторять; элементы null запрещены. Пустой массив даёт 400.
+          items: {$ref: '#/components/schemas/DisciplineSortCriterion'}
         ids:
           type: array
+          nullable: true
           minItems: 1
           maxItems: 1000
+          description: Идентификаторы дисциплин (IN)
           items: {type: integer, format: int64, minimum: 1}
-        name: {type: string}
-        practiceHoursFrom: {type: integer, format: int64, minimum: 0}
-        practiceHoursTo: {type: integer, format: int64, minimum: 0}
-        labsCountFrom: {type: integer, format: int64, minimum: 0}
-        labsCountTo: {type: integer, format: int64, minimum: 0}
+        name: {type: string, nullable: true, description: Подстрока названия дисциплины}
+        practiceHoursFrom: {type: integer, format: int64, minimum: 0, nullable: true}
+        practiceHoursTo: {type: integer, format: int64, minimum: 0, nullable: true}
+        labsCountFrom: {type: integer, format: int64, minimum: 0, nullable: true}
+        labsCountTo: {type: integer, format: int64, minimum: 0, nullable: true}
 
     LabWorkPageResponse:
       type: object
@@ -614,9 +804,11 @@ components:
 
     ErrorResponse:
       type: object
+      required: [status, error, message]
       properties:
         status:
           type: integer
+          format: int32
         error:
           type: string
         message:
