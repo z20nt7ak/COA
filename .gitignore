@@ -4,3 +4,6 @@
 *.iml
 target/
 .pnpm-store/
+/script/load_to_server.txt
+/script/
+/frontend/node_modules/

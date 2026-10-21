@@ -19,21 +19,45 @@ services:
     image: payara/server-full:7.2026.10
     container_name: payara
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5433/lab_work_db
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://lab_work_db:5432/lab_work_db
       - DEPLOY_PROPS=--properties implicitCdiEnabled=false
     volumes:
       - ./Labs/target/labs.war:/opt/payara/deployments/labs.war
+      - ./payara/keystore.p12:/opt/payara/appserver/glassfish/domains/domain1/config/keystore.p12
+      - ./payara/pre-boot-commands.asadmin:/opt/payara/config/pre-boot-commands.asadmin
     ports:
-      - "8080:8080"
-      - "4848:4848"
+      - "8181:8181"
 
   jetty:
     image: jetty:12.1-jdk21
     container_name: jetty
-    command: --module=ee11-deploy,ee11-annotations
+    command: >
+      --module=ee11-deploy,ee11-annotations,https
+      jetty.sslContext.keyStorePath=etc/keystore.p12
+      jetty.sslContext.keyStorePassword=changeit
+      jetty.http.host=127.0.0.1
     environment:
-      - LABS_API_URL=http://payara:8080/labs
+      - LABS_API_URL=https://payara:8181/labs
+      - LABS_TRUSTSTORE_PATH=/certs/truststore.p12
+      - LABS_TRUSTSTORE_PASSWORD=changeit
     volumes:
       - ./Bars/target/bars.war:/var/lib/jetty/webapps/bars.war
+      - ./certs/server-keystore.p12:/var/lib/jetty/etc/keystore.p12:ro
+      - ./certs/truststore.p12:/certs/truststore.p12:ro
     ports:
-      - "8081:8080"
+      - "8443:8443"
+
+  front:
+    image: nginx:1.27
+    container_name: front
+    volumes:
+      - ./front/dist:/usr/share/nginx/html:ro
+      - ./front/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs/server.crt:/certs/server.crt:ro
+      - ./certs/server.key:/certs/server.key:ro
+    ports:
+      - "443:443"
+    depends_on:
+      - payara
+      - jetty
+
