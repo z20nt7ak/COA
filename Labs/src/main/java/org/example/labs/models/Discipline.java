@@ -14,7 +14,7 @@ public class Discipline {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, columnDefinition = "text")
     private String name;
 
     @Column(name = "practice_hours", nullable = false)
