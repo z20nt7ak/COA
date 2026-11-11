@@ -45,7 +45,7 @@ public class LabWorkService {
         this.disciplineService = disciplineService;
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional
     public LabWorkResponseDto saveLabWork(LabWorkRequestDto requestDto) {
         LabWork labWork = labWorkMapper.toEntity(requestDto);
         labWork.setCreationDate(ZonedDateTime.now(ZoneOffset.UTC));
