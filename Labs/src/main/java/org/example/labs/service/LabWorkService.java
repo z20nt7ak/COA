@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
-import java.util.TreeMap;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import java.util.List;
@@ -146,13 +145,18 @@ public class LabWorkService {
     private void changeDiscipline(LabWork lab, Long next) {
         Long previous = disciplineId(lab);
         if (Objects.equals(previous, next)) return;
-        var rows = new TreeMap<Long, Discipline>();
-        if (previous != null) rows.put(previous, null);
-        if (next != null) rows.put(next, null);
-        rows.replaceAll((id, unused) -> disciplineService.lockDisciplineForLab(id));
-        if (previous != null) disciplineService.changeLabsCount(rows.get(previous), -1);
-        lab.setDiscipline(next == null ? null : rows.get(next));
-        if (next != null) disciplineService.changeLabsCount(rows.get(next), 1);
+        if (previous != null && next != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Сначала отвяжите работу от текущей дисциплины");
+        }
+        if (previous != null) {
+            Discipline current = disciplineService.lockDisciplineForLab(previous);
+            lab.setDiscipline(null);
+            disciplineService.changeLabsCount(current, -1);
+        } else {
+            Discipline target = disciplineService.lockDisciplineForLab(next);
+            lab.setDiscipline(target);
+            disciplineService.changeLabsCount(target, 1);
+        }
     }
 
     private LabWork lockLabWork(long id) {

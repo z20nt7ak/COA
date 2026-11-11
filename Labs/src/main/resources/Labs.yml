@@ -112,7 +112,9 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
-      description: " Обновить лабораторную по id"
+      description: >-
+        Обновить лабораторную по id. Текущую дисциплину можно сохранить или отвязать,
+        передав discipline=null. Чтобы назначить другую дисциплину, сначала сохраните отвязку.
       parameters:
         - name: id
           in: path
@@ -134,6 +136,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LabWork"
+        "409":
+          description: Сначала отвяжите работу от текущей дисциплины
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: "Некорректный id"
           content:

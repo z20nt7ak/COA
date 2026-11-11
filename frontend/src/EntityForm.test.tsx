@@ -28,7 +28,9 @@ describe('discipline selector', () => {
     await screen.findByRole('option', { name: 'Физика · №3' });
     const select = screen.getByRole('combobox', { name: 'Дисциплина' }) as HTMLSelectElement;
     expect(select.value).toBe('3');
+    expect(screen.queryByRole('option', { name: 'Алгебра · №8' })).toBeNull();
     await user.selectOptions(select, '');
+    expect(screen.queryByRole('option', { name: 'Алгебра · №8' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Сохранить' }));
     const call = fetch.mock.calls.find(call => call[0] === '/api/labs/lab-works/12');
     expect(JSON.parse(call![1].body).discipline).toBeNull();

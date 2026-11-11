@@ -103,6 +103,4 @@ public class DisciplineService {
             discipline.setLabsCount(discipline.getLabsCount() + numberOfLabs);
         }
     }
-
-
 }

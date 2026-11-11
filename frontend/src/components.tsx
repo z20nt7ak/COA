@@ -39,6 +39,8 @@ export function EntityForm({ resource, entity, close, saved }: { resource: Resou
     return () => controller.abort();
   }, [lab, retryDisciplines]);
   const unavailableDiscipline = !!disciplineId && !disciplines.some(item => String(item.id) === disciplineId);
+  const currentDiscipline = existingLab?.discipline;
+  const allowedDisciplines = currentDiscipline ? disciplines.filter(item => item.id === currentDiscipline.id) : disciplines;
   const cannotSave = busy || (lab && (loadingDisciplines || !!disciplineError || unavailableDiscipline));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
@@ -75,10 +77,10 @@ export function EntityForm({ resource, entity, close, saved }: { resource: Resou
           <label>Дисциплина <span className="optional">необязательно</span><select aria-label="Дисциплина" name="discipline" value={disciplineId} disabled={loadingDisciplines || !!disciplineError} onChange={event => setDisciplineId(event.target.value)}>
             <option value="">{loadingDisciplines ? 'Загрузка дисциплин…' : 'Без дисциплины'}</option>
             {unavailableDiscipline && <option value={disciplineId} disabled>{existingLab?.discipline?.name ?? 'Текущая дисциплина'} — недоступна</option>}
-            {disciplines.map(item => <option key={item.id} value={item.id}>{item.name} · №{item.id}</option>)}
+            {allowedDisciplines.map(item => <option key={item.id} value={item.id}>{item.name} · №{item.id}</option>)}
           </select></label>
           {!loadingDisciplines && !disciplineError && disciplines.length === 0 && <p className="field-hint">Дисциплин пока нет. Создайте их в разделе «Дисциплины» или сохраните работу без привязки.</p>}
-          {!loadingDisciplines && !disciplineError && unavailableDiscipline && <p className="field-hint">Текущей дисциплины больше нет в списке. Выберите другую или «Без дисциплины».</p>}
+          {currentDiscipline && <p className="field-hint">Чтобы сменить дисциплину, выберите «Без дисциплины» и сохраните работу. Затем привяжите её к новой дисциплине.</p>}
 
         </> : <><label>Часы практики<input name="practiceHours" type="number" min="0" max={Number.MAX_SAFE_INTEGER} step="1" required defaultValue={existingDiscipline?.practiceHours ?? 0} /></label></>}
       </fieldset>
