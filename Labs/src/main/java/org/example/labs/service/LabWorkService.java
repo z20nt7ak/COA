@@ -75,7 +75,7 @@ public class LabWorkService {
         return labWorkMapper.toDto(labWork);
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional
     public LabWorkResponseDto update(Long id, LabWorkRequestDto request) {
         LabWork labWork = lockLabWork(id);
         changeDiscipline(labWork, request.getDiscipline() == null ? null : request.getDiscipline().getId());
@@ -89,7 +89,7 @@ public class LabWorkService {
         return labWorkMapper.toDto(saved);
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional
     public void delete(Long id) {
         LabWork labWork = lockLabWork(id);
         Long previous = disciplineId(labWork);
@@ -147,7 +147,6 @@ public class LabWorkService {
     private void changeDiscipline(LabWork lab, Long next) {
         Long previous = disciplineId(lab);
         if (Objects.equals(previous, next)) return;
-        // Lock both discipline rows in the same order even when moving in opposite directions.
         var rows = new TreeMap<Long, Discipline>();
         if (previous != null) rows.put(previous, null);
         if (next != null) rows.put(next, null);
