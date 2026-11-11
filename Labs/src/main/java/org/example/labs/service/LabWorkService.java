@@ -22,7 +22,6 @@ import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.TreeMap;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import java.util.List;
@@ -121,7 +120,7 @@ public class LabWorkService {
         return groups;
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional
     public void changeLink(long labId, long disciplineId, boolean add) {
         if (disciplineId <= 0) throw new InvalidIdException("Некорректный id дисциплины");
         LabWork lab = lockLabWork(labId);
