@@ -148,6 +148,11 @@ input:focus, select:focus { border-color: #3e8f75; }
 .link-heading h2 { font-size: 22px; }
 .link-card .form-fields { gap: 24px; }
 .link-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.link-page-size { align-self: flex-start; }
+.link-page-size select { width: auto; }
+.link-pager { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.operation-feedback { margin-top: 10px; color: #486c50; }
+.operation-feedback.error { color: #9f231b; }
 .link-field { min-width: 0; }
 .link-field label { gap: 12px; }
 .link-field-label { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; }

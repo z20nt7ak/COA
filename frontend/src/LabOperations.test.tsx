@@ -31,7 +31,7 @@ describe('collection operations', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'Нет лабораторных работ с заданной сложностью' }), { status: 404 })));
     const onLab = vi.fn(); render(<LabOperations onLab={onLab} />);
     await userEvent.click(screen.getByRole('button', { name: 'Максимальная сложность' }));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Нет лабораторных работ с заданной сложностью');
+    expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Нет лабораторных работ с заданной сложностью');
     expect(onLab).not.toHaveBeenCalled();
   });
 });

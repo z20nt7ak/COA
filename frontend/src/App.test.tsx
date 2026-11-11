@@ -108,9 +108,8 @@ describe('server search and pagination', () => {
   });
   it('keeps BARS selectors working alongside server search', async () => {
     const fetch = vi.fn().mockImplementation(async (url: string) => {
-      if (url.endsWith('/search')) return json(page([entity]));
-      if (url === '/api/labs/lab-works') return json([entity]);
-      if (url === '/api/labs/disciplines') return json([discipline]);
+      if (url === '/api/labs/disciplines/search') return json(page([discipline]));
+      if (url === '/api/labs/lab-works/search') return json(page([entity]));
       return json({ message: 'Работа уже привязана' }, 409);
     });
     vi.stubGlobal('fetch', fetch); render(<App />); const user = userEvent.setup();

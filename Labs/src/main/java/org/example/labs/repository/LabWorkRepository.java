@@ -13,7 +13,15 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.repository.query.Param;
+
 public interface LabWorkRepository extends JpaRepository<LabWork, Long>, JpaSpecificationExecutor<LabWork> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select l from LabWork l where l.id = :id")
+    Optional<LabWork> lockById(@Param("id") long id);
+
     @Override
     @EntityGraph(attributePaths = "discipline")
     Page<LabWork> findAll(Specification<LabWork> spec, Pageable pageable);

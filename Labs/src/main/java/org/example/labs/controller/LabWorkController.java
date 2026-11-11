@@ -54,6 +54,18 @@ public class LabWorkController {
         return labWorkService.groupByName();
     }
 
+    @PutMapping("/{id}/discipline/{disciplineId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void link(@PathVariable("id") long id, @PathVariable("disciplineId") long disciplineId) {
+        labWorkService.changeLink(id, disciplineId, true);
+    }
+
+    @DeleteMapping("/{id}/discipline/{disciplineId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlink(@PathVariable("id") long id, @PathVariable("disciplineId") long disciplineId) {
+        labWorkService.changeLink(id, disciplineId, false);
+    }
+
     @GetMapping("/{id}")
     public LabWorkResponseDto getById(@PathVariable("id") Long id) {
         return labWorkService.getLabWork(id);

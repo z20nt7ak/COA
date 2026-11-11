@@ -1,6 +1,6 @@
 package org.example.bars.client;
 
-import org.example.bars.dto.LabWorkDto;
+import org.springframework.http.HttpMethod;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -15,24 +15,9 @@ public class LabsApiClient {
         this.labsRestClient = labsRestClient;
     }
 
-    public LabWorkDto getLabWork(long id) {
-        return labsRestClient.get()
-                .uri("/lab-works/{id}", id)
-                .retrieve()
-                .body(LabWorkDto.class);
-    }
-
-    public void checkDisciplineExists(long id) {
-        labsRestClient.get()
-                .uri("/disciplines/{id}", id)
-                .retrieve()
-                .toBodilessEntity();
-    }
-
-    public void updateLabWork(long id, LabWorkDto labWork) {
-        labsRestClient.put()
-                .uri("/lab-works/{id}", id)
-                .body(labWork)
+    public void changeLink(long labWorkId, long disciplineId, boolean add) {
+        labsRestClient.method(add ? HttpMethod.PUT : HttpMethod.DELETE)
+                .uri("/lab-works/{id}/discipline/{disciplineId}", labWorkId, disciplineId)
                 .retrieve()
                 .toBodilessEntity();
     }

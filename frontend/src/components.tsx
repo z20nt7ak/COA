@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { ArrowRight, Link2, RefreshCw, Unlink, X } from 'lucide-react';
 import { api } from './api';
 import { positiveId } from './search';
-import { difficulties, difficultyLabels, isLab, type Entity, type LabInput, type DisciplineInput, type Resource, type Discipline, type LabWork } from './types';
+import { difficulties, difficultyLabels, isLab, type Entity, type LabInput, type DisciplineInput, type Resource, type Discipline, type LabWork, type Page } from './types';
 
 export const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить действие.';
 export function Modal({ title, children, close, busy = false }: { title: string; children: ReactNode; close: () => void; busy?: boolean }) {
@@ -103,31 +103,54 @@ export function DeleteDialog({ resource, entity, close, deleted }: { resource: R
   </Modal>;
 }
 
+function LinkPager({ label, page, totalPages, disabled, go }: { label: string; page: number; totalPages: number; disabled: boolean; go: (page: number) => void }) {
+  if (totalPages <= 1 && page === 1) return null;
+  return <div className="link-pager" role="group" aria-label={`Страницы ${label}`}>
+    <button type="button" className="button secondary" aria-label={`Предыдущая страница ${label}`} disabled={disabled || page <= 1} onClick={() => go(page - 1)}>Назад</button>
+    <span>{page} / {totalPages || '—'}</span>
+    <button type="button" className="button secondary" aria-label={`Следующая страница ${label}`} disabled={disabled || page >= totalPages} onClick={() => go(page + 1)}>Далее</button>
+  </div>;
+}
+
 export function LinkPanel({ changed }: { changed: (labId: number, disciplineId: number) => Promise<void> }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const [action, setAction] = useState<'add' | 'remove'>('add');
-  const [labs, setLabs] = useState<LabWork[]>([]), [disciplines, setDisciplines] = useState<Discipline[]>([]);
+  const [labs, setLabs] = useState<Page<LabWork>>();
+  const [disciplines, setDisciplines] = useState<Page<Discipline>>();
+  const [size, setSize] = useState(20);
+  const [labPage, setLabPage] = useState(1), [disciplinePage, setDisciplinePage] = useState(1);
+  const [refresh, setRefresh] = useState(0);
+  function resetLists() {
+    setLabPage(1); setDisciplinePage(1);
+    setLabId(''); setDisciplineId('');
+    setRefresh(value => value + 1);
+  }
   const [labId, setLabId] = useState(''), [disciplineId, setDisciplineId] = useState('');
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState('');
-  const controller = useRef<AbortController | null>(null);
-  async function load() {
-    controller.current?.abort();
-    const request = new AbortController(); controller.current = request;
+  useEffect(() => {
+    const request = new AbortController();
     setLoading(true); setLoadError('');
-    try {
-      const [labs, disciplines] = await Promise.all([api.labWorks(request.signal), api.disciplines(request.signal)]);
+    void Promise.all([
+      api.search('lab-works', { page: labPage, size, sortBy: 'name', hasDiscipline: action === 'remove' }, request.signal),
+      action === 'add' ? api.search('disciplines', { page: disciplinePage, size, sortBy: 'name' }, request.signal) : Promise.resolve(undefined),
+    ]).then(([workPage, discPage]) => {
       if (request.signal.aborted) return;
-      if (!Array.isArray(labs) || !Array.isArray(disciplines)) throw new Error('Неверный формат списков от сервера.');
-      setLabs(labs); setDisciplines(disciplines);
-      setLabId(''); setDisciplineId('');
-    } catch (error) { if (!request.signal.aborted) setLoadError(messageOf(error)); }
-    finally { if (!request.signal.aborted) setLoading(false); }
-  }
-  useEffect(() => { void load(); return () => controller.current?.abort(); }, []);
-  const eligibleLabs = labs.filter(lab => action === 'add' ? !lab.discipline : !!lab.discipline);
+      if (!Array.isArray(workPage?.content) || (discPage && !Array.isArray(discPage.content))) {
+        throw new Error('Неверный формат страницы от сервера.');
+      }
+      setLabs(workPage as Page<LabWork>);
+      setDisciplines(discPage as Page<Discipline> | undefined);
+    }).catch(error => {
+      if (!request.signal.aborted) setLoadError(messageOf(error));
+    }).finally(() => {
+      if (!request.signal.aborted) setLoading(false);
+    });
+    return () => request.abort();
+  }, [action, labPage, disciplinePage, size, refresh]);
+  const eligibleLabs = labs?.content ?? [];
   const selectedLab = eligibleLabs.find(lab => String(lab.id) === labId);
   const selectableDisciplines = action === 'remove'
-    ? disciplines.filter(discipline => discipline.id === selectedLab?.discipline?.id) : disciplines;
+    ? (selectedLab?.discipline ? [selectedLab.discipline] : []) : (disciplines?.content ?? []);
   const selectedDiscipline = selectableDisciplines.find(discipline => String(discipline.id) === disciplineId);
   const cannotSubmit = busy || loading || !!loadError || !selectedLab || !selectedDiscipline;
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -137,23 +160,28 @@ export function LinkPanel({ changed }: { changed: (labId: number, disciplineId: 
     try {
       setBusy(true); await api.link(discipline, lab, action);
       setSuccess(action === 'add' ? `«${selectedLab.name}» добавлена в дисциплину «${selectedDiscipline.name}».` : `«${selectedLab.name}» отвязана от дисциплины «${selectedDiscipline.name}».`);
-      await load();
+      resetLists();
       try { await changed(lab, discipline); }
       catch { setError('Связь изменена, но данные каталога не удалось обновить.'); }
     } catch (error) { setError(messageOf(error)); } finally { setBusy(false); }
   }
   return <div className="link-layout"><section className="card link-card">
-    <div className="link-heading"><h2>Связи</h2><button type="button" className="button secondary" disabled={busy || loading} onClick={() => void load()}><RefreshCw size={16} className={loading ? 'spin' : ''} />{loadError ? 'Повторить загрузку списков' : 'Обновить списки'}</button></div>
+    <div className="link-heading"><h2>Связи</h2><button type="button" className="button secondary" disabled={busy || loading} onClick={resetLists}><RefreshCw size={16} className={loading ? 'spin' : ''} />{loadError ? 'Повторить загрузку списков' : 'Обновить списки'}</button></div>
     <form onSubmit={submit}><fieldset disabled={busy || loading} className="form-fields">
-      <div className="segmented" aria-label="Операция со связью">{(['add', 'remove'] as const).map(value => <button key={value} type="button" aria-pressed={action === value} className={action === value ? 'selected' : ''} onClick={() => { setAction(value); setLabId(''); setDisciplineId(''); setSuccess(''); setError(''); }}>{value === 'add' ? <Link2 size={17} /> : <Unlink size={17} />}{value === 'add' ? 'Привязать работу' : 'Отвязать работу'}</button>)}</div>
+      <div className="segmented" aria-label="Операция со связью">{(['add', 'remove'] as const).map(value => <button key={value} type="button" aria-pressed={action === value} className={action === value ? 'selected' : ''} onClick={() => { if (value !== action) { setAction(value); resetLists(); setSuccess(''); setError(''); } }}>{value === 'add' ? <Link2 size={17} /> : <Unlink size={17} />}{value === 'add' ? 'Привязать работу' : 'Отвязать работу'}</button>)}</div>
+      <label className="link-page-size">Записей на странице<select value={size} onChange={event => { setSize(Number(event.target.value)); resetLists(); }}>{[5, 10, 20, 50, 100].map(value => <option key={value}>{value}</option>)}</select></label>
       <div className="link-fields"><div className="link-field"><label><span className="link-field-label"><span className="step-number" aria-hidden="true">1</span>Лабораторная работа</span><select aria-label="Лабораторная работа" required value={labId} disabled={!!loadError} onChange={event => {
         setLabId(event.target.value);
         if (action === 'remove') setDisciplineId(String(eligibleLabs.find(lab => String(lab.id) === event.target.value)?.discipline?.id ?? ''));
       }}><option value="">{loading ? 'Загрузка работ…' : 'Выберите лабораторную'}</option>{eligibleLabs.map(lab => <option key={lab.id} value={lab.id}>{lab.name} · №{lab.id}{lab.discipline ? ` · ${lab.discipline.name}` : ''}</option>)}</select></label>
+      <LinkPager label="лабораторных работ" page={labPage} totalPages={labs?.totalPages ?? 0} disabled={!!loadError} go={page => {
+        setLabId(''); if (action === 'remove') setDisciplineId(''); setLabPage(page);
+      }} />
       {!loading && !loadError && eligibleLabs.length === 0 && <p className="field-hint">{action === 'add' ? 'Нет свободных лабораторных работ. Создайте работу без дисциплины или сначала отвяжите существующую.' : 'Нет лабораторных работ, привязанных к дисциплинам.'}</p>}
       </div><div className="link-field"><label><span className="link-field-label"><span className="step-number" aria-hidden="true">2</span>Дисциплина</span><select aria-label="Дисциплина" required value={disciplineId} disabled={!!loadError || (action === 'remove' && !selectedLab)} onChange={event => setDisciplineId(event.target.value)}><option value="">{loading ? 'Загрузка дисциплин…' : 'Выберите дисциплину'}</option>{selectableDisciplines.map(discipline => <option key={discipline.id} value={discipline.id}>{discipline.name} · №{discipline.id}</option>)}</select></label>
       {action === 'remove' && selectedLab && <p className="field-hint">Выбрана текущая дисциплина работы. Отвязать работу можно только от неё.</p>}
-      {!loading && !loadError && disciplines.length === 0 && <p className="field-hint">Дисциплин пока нет. Создайте их в разделе «Дисциплины».</p>}
+      {action === 'add' && <LinkPager label="дисциплин" page={disciplinePage} totalPages={disciplines?.totalPages ?? 0} disabled={!!loadError} go={page => { setDisciplineId(''); setDisciplinePage(page); }} />}
+      {action === 'add' && !loading && !loadError && disciplines?.totalElements === 0 && <p className="field-hint">Дисциплин пока нет. Создайте их в разделе «Дисциплины».</p>}
       </div></div>
       {selectedLab && selectedDiscipline && <div className="link-summary"><span>{action === 'add' ? 'Привязать' : 'Отвязать'}</span><strong>{selectedLab.name} <small>№{selectedLab.id}</small></strong><ArrowRight size={17} /><strong>{selectedDiscipline.name} <small>№{selectedDiscipline.id}</small></strong></div>}
       <div className="link-submit"><button className="button primary" disabled={cannotSubmit}>{busy ? <RefreshCw size={17} className="spin" /> : action === 'add' ? <Link2 size={17} /> : <Unlink size={17} />}{busy ? 'Выполнение…' : action === 'add' ? 'Добавить в программу' : 'Удалить из программы'}</button></div>

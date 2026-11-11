@@ -1,4 +1,5 @@
 import type { Filters, Resource } from './types';
+import { displayTimeZone } from './format';
 
 export function positiveId(value: string): number {
   const number = Number(value);
@@ -18,7 +19,7 @@ export function searchBody(resource: Resource, filters: Filters, page: number, s
       const key = `${field}${suffix}` as keyof Filters;
       const raw = filters[key];
       if (!raw) continue;
-      if (field === 'creationDate') { body[key] = raw; continue; }
+      if (field === 'creationDate') { body[key] = raw; body.dateTimeZone = displayTimeZone; continue; }
       const value = Number(raw);
       if (!Number.isFinite(value) || (field !== 'y' && !Number.isSafeInteger(value))) throw new Error('Проверьте числовые границы фильтров.');
       if (field === 'x' && (value < -2147483648 || value > 2147483647)) throw new Error('Координата X должна помещаться в int32.');

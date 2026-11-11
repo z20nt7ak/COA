@@ -8,7 +8,7 @@ info:
     и POST /disciplines/search. GET коллекций возвращает все записи для списков выбора
     и не принимает параметры поиска или пагинации.
 servers:
-  - url: http://localhost:8080/labs
+  - url: https://localhost:8181/labs
     description: LABS в Payara (docker compose)
 
 paths:
@@ -266,6 +266,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /lab-works/{id}/discipline/{disciplineId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: integer, format: int64, minimum: 1}
+      - name: disciplineId
+        in: path
+        required: true
+        schema: {type: integer, format: int64, minimum: 1}
+    put:
+      operationId: linkLabWork
+      summary: Привязать свободную лабораторную к дисциплине
+      description: Проверка связи, привязка и обновление счётчика выполняются в одной транзакции LABS.
+      responses:
+        "204":
+          description: Связь создана
+        "400":
+          $ref: '#/components/responses/InvalidLinkId'
+        "404":
+          $ref: '#/components/responses/LinkNotFound'
+        "409":
+          description: У лабораторной работы уже есть дисциплина
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    delete:
+      operationId: unlinkLabWork
+      summary: Отвязать лабораторную от указанной дисциплины
+      description: Связь удаляется, только если работа сейчас относится к указанной дисциплине.
+      responses:
+        "204":
+          description: Связь удалена
+        "400":
+          $ref: '#/components/responses/InvalidLinkId'
+        "404":
+          $ref: '#/components/responses/LinkNotFound'
+
   /lab-works/search:
     post:
       operationId: searchLabWorks
@@ -296,6 +334,7 @@ paths:
                   disciplineIds: [1, 2]
                   creationDateFrom: '2026-10-01'
                   creationDateTo: '2026-10-31'
+                  dateTimeZone: Europe/Moscow
                   sort:
                     - {field: difficulty, direction: desc}
                     - {field: name, direction: asc}
@@ -445,6 +484,16 @@ paths:
 # компоненты
 components:
   responses:
+    InvalidLinkId:
+      description: Некорректный идентификатор работы или дисциплины
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    LinkNotFound:
+      description: Работа или дисциплина не найдена либо указанной связи нет
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
     UnsupportedMediaType:
       description: Ожидается Content-Type application/json
       content:
@@ -647,7 +696,8 @@ components:
         пустые и состоящие только из пробелов строки не добавляют условие.
         %, _ и обратная косая черта — обычные символы.
         Числовые границы включительны; любая граница может задаваться отдельно.
-        creationDateFrom включается с 00:00 UTC, creationDateTo включает весь день до 00:00 следующего дня.
+        creationDateFrom включается с начала дня, creationDateTo включает весь день до начала следующего.
+        Календарные границы вычисляются в dateTimeZone (по умолчанию UTC), включая переходы летнего времени.
         Нижняя граница больше верхней даёт 400.
         hasDifficulty=false вместе с difficulty даёт 400.
         hasDiscipline=false вместе с disciplineIds, непустым disciplineName или границами полей дисциплины даёт 400.
@@ -699,6 +749,12 @@ components:
         yTo: {type: number, format: double, nullable: true, description: Только конечное число}
         creationDateFrom: {type: string, format: date, nullable: true, example: '2026-10-01'}
         creationDateTo: {type: string, format: date, nullable: true, example: '2026-10-31'}
+        dateTimeZone:
+          type: string
+          nullable: true
+          default: UTC
+          example: Europe/Moscow
+          description: Часовой пояс IANA для границ календарных дат. Неизвестная зона даёт 400.
         minimalPointFrom: {type: integer, format: int32, minimum: 1, nullable: true}
         minimalPointTo: {type: integer, format: int32, minimum: 1, nullable: true}
         difficulty: {type: string, nullable: true, enum: [VERY_EASY, EASY, VERY_HARD, TERRIBLE, null], description: Точное значение сложности}

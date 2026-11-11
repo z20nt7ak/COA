@@ -71,6 +71,11 @@ public class GlobalExceptionHandler {
     }
 
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ErrorResponseDto> handleStatus(org.springframework.web.server.ResponseStatusException e) {
+        return build(HttpStatus.valueOf(e.getStatusCode().value()), e.getReason());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> handleOther(Exception e) {
         log.error("Необработанная ошибка", e);

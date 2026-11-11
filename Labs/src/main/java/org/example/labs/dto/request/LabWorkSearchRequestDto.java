@@ -15,6 +15,7 @@ public class LabWorkSearchRequestDto extends PageOptions {
     private Integer xFrom, xTo;
     private Double yFrom, yTo;
     private LocalDate creationDateFrom, creationDateTo;
+    private String dateTimeZone;
     @Positive private Integer minimalPointFrom;
     @Positive private Integer minimalPointTo;
     private Difficulty difficulty;

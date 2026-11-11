@@ -52,6 +52,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "Лабораторная работа или дисциплина не найдена");
     }
 
+    @ExceptionHandler(HttpClientErrorException.Conflict.class)
+    public ResponseEntity<ErrorResponseDto> handleLabsConflict(HttpClientErrorException.Conflict e) {
+        return build(HttpStatus.CONFLICT, "У лабораторной работы уже есть дисциплина");
+    }
+
     @ExceptionHandler(HttpStatusCodeException.class)
     public ResponseEntity<ErrorResponseDto> handleLabsError(HttpStatusCodeException e) {
         log.warn("Labs вернул ошибку: {} {}", e.getStatusCode(), e.getResponseBodyAsString());

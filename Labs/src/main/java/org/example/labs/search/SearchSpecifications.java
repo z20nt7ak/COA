@@ -7,6 +7,7 @@ import org.example.labs.exceptions.InvalidSearchException;
 import org.example.labs.models.*;
 import org.springframework.data.jpa.domain.Specification;
 import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.DateTimeException;
 import java.util.*;
 
@@ -29,6 +30,7 @@ public final class SearchSpecifications {
                 r.getDisciplineLabsCountFrom() != null || r.getDisciplineLabsCountTo() != null;
         if (Boolean.FALSE.equals(r.getHasDiscipline()) && disciplineFilter) invalid("Фильтры дисциплины противоречат hasDiscipline=false");
         if (Boolean.FALSE.equals(r.getHasDifficulty()) && r.getDifficulty() != null) invalid("difficulty противоречит hasDifficulty=false");
+        var dateZone = dateZone(r.getDateTimeZone());
         var orders = sort(r, r.getSortType(), LAB_SORT);
         return (root, query, cb) -> {
             List<Predicate> p = new ArrayList<>();
@@ -37,9 +39,9 @@ public final class SearchSpecifications {
             range(p, cb, root.get("coordinates").get("x"), r.getXFrom(), r.getXTo());
             range(p, cb, root.get("coordinates").get("y"), r.getYFrom(), r.getYTo());
             range(p, cb, root.get("minimalPoint"), r.getMinimalPointFrom(), r.getMinimalPointTo());
-            if (r.getCreationDateFrom() != null) p.add(cb.greaterThanOrEqualTo(root.get("creationDate"), r.getCreationDateFrom().atStartOfDay(ZoneOffset.UTC)));
+            if (r.getCreationDateFrom() != null) p.add(cb.greaterThanOrEqualTo(root.get("creationDate"), r.getCreationDateFrom().atStartOfDay(dateZone)));
             if (r.getCreationDateTo() != null) {
-                try { p.add(cb.lessThan(root.get("creationDate"), r.getCreationDateTo().plusDays(1).atStartOfDay(ZoneOffset.UTC))); }
+                try { p.add(cb.lessThan(root.get("creationDate"), r.getCreationDateTo().plusDays(1).atStartOfDay(dateZone))); }
                 catch (DateTimeException e) { invalid("Некорректная верхняя граница даты"); }
             }
             if (r.getDifficulty() != null) p.add(cb.equal(root.get("difficulty"), r.getDifficulty()));
@@ -106,6 +108,14 @@ public final class SearchSpecifications {
             orders.add(item.direction().equalsIgnoreCase("desc") ? cb.desc(path) : cb.asc(path));
         }
         query.orderBy(orders);
+    }
+
+    private static ZoneId dateZone(String value) {
+        if (value == null) return ZoneOffset.UTC;
+        if (!ZoneId.getAvailableZoneIds().contains(value) && !value.equals("UTC")) {
+            throw new InvalidSearchException("Неизвестный часовой пояс: " + value);
+        }
+        return ZoneId.of(value);
     }
 
     private static void contains(List<Predicate> p, CriteriaBuilder cb, Expression<String> path, String value) {

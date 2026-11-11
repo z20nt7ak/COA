@@ -1,12 +1,12 @@
 openapi: "3.0.3"
 info:
-  title: Лабораторная работа №1
+  title: BARS — связи лабораторных и дисциплин
   version: "1.0"
 servers:
-  - url: https://176.12.70.243:8081
+  - url: https://localhost:8443/bars
 
 paths:
-  /bars/discipline/{discipline-id}/labwork/{labwork-id}/add:
+  /discipline/{discipline-id}/labwork/{labwork-id}/add:
     post:
       description: "Добавить лабораторную работу в программу дисциплины"
       parameters:
@@ -40,7 +40,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /bars/discipline/{discipline-id}/labwork/{labwork-id}/remove:
+        "409":
+          description: У лабораторной работы уже есть дисциплина
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /discipline/{discipline-id}/labwork/{labwork-id}/remove:
     post:
       description: "Удалить лабораторную работу из программы дисциплины"
       parameters:
@@ -59,7 +66,7 @@ paths:
             format: int64
             minimum: 1
       responses:
-        "204":
+        "200":
           description: "Лабораторная работа удалена из программы дисциплины"
         "400":
           description: "Некорректный id"
@@ -68,7 +75,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: "Дисциплина или лабораторная работа не найдена"
+          description: "Лабораторная работа не найдена или не относится к указанной дисциплине"
           content:
             application/json:
               schema:

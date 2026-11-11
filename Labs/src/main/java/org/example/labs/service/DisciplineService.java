@@ -33,19 +33,23 @@ public class DisciplineService {
 
     }
 
+    @Transactional
     public DisciplineResponseDto saveDiscipline(DisciplineRequestDto requestDto) {
         Discipline discipline = disciplineMapper.toEntity(requestDto);
         disciplineRepository.save(discipline);
+        CommitLog.record("discipline.create", discipline.getId(), null);
         return disciplineMapper.toDto(discipline);
     }
 
+    @Transactional
     public void delete(Long id) {
-        Discipline discipline = findDiscipline(id);
+        Discipline discipline = lockDiscipline(id);
         if (discipline.getLabsCount() > 0) {
             throw new DisciplineInUseException("Нельзя удалить дисциплину id=" + id
                     + ": к ней привязано лабораторных: " + discipline.getLabsCount());
         }
         disciplineRepository.delete(discipline);
+        CommitLog.record("discipline.delete", id, null);
     }
 
     @Transactional(readOnly = true)
@@ -65,11 +69,13 @@ public class DisciplineService {
         return disciplineMapper.toDto(discipline);
     }
 
+    @Transactional
     public DisciplineResponseDto update(Long id, DisciplineRequestDto request) {
-        Discipline discipline = findDiscipline(id);
+        Discipline discipline = lockDiscipline(id);
         discipline.setName(request.getName());
         discipline.setPracticeHours(request.getPracticeHours());
         Discipline saved = disciplineRepository.save(discipline);
+        CommitLog.record("discipline.update", id, null);
         return disciplineMapper.toDto(saved);
     }
 
@@ -81,8 +87,14 @@ public class DisciplineService {
                 new EntityNotFoundException("Дисциплина с id=" + id + " не найдена"));
     }
 
-    public Discipline findDisciplineForLab(Long id) {
-        return disciplineRepository.findById(id).orElseThrow(() ->
+    private Discipline lockDiscipline(Long id) {
+        if (id <= 0) throw new InvalidIdException("Некорректный id");
+        return disciplineRepository.lockById(id).orElseThrow(() ->
+                new EntityNotFoundException("Дисциплина с id=" + id + " не найдена"));
+    }
+
+    public Discipline lockDisciplineForLab(Long id) {
+        return disciplineRepository.lockById(id).orElseThrow(() ->
                 new DisciplineNotExistsException("Дисциплина с id=" + id + " не существует"));
     }
 
