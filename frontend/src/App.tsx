@@ -3,10 +3,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, Check, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { api } from './api';
 import LabOperations from './LabOperations';
-import { DeleteDialog, EntityForm, LinkPanel, Modal, messageOf } from './components';
+import { DeleteDialog, EntityForm, ExpandableText, LinkPanel, Modal, messageOf } from './components';
 import { searchBody } from './search';
 import { LIMITS, positiveId, ValidationError } from './validation';
-import { difficulties, difficultyLabels, emptyFilters, isLab, type Entity, type Filters, type Resource, type Page } from './types';
+import { difficulties, difficultyLabels, emptyFilters, isLab, type Entity, type Filters, type Resource, type Page, type SortCriterion } from './types';
 
 type View = Resource | 'bars';
 const titles: Record<View, string> = { 'lab-works': 'Лабораторные работы', disciplines: 'Дисциплины', bars: 'Программа дисциплин' };
@@ -30,8 +30,7 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
   const [draft, setDraft] = useState<Filters>({ ...emptyFilters });
   const [filters, setFilters] = useState<Filters>({ ...emptyFilters });
   const [expanded, setExpanded] = useState(false), [page, setPage] = useState(1), [size, setSize] = useState(10);
-  const [sortBy, setSortBy] = useState('id'), [direction, setDirection] = useState('asc');
-  const [thenBy, setThenBy] = useState(''), [thenDirection, setThenDirection] = useState('asc');
+  const [sorts, setSorts] = useState<SortCriterion[]>([{ field: 'id', direction: 'asc' }]);
   const [data, setData] = useState<Page<Entity> | null>(null);
   const [busy, setBusy] = useState(true), [lookupBusy, setLookupBusy] = useState(false);
   const [error, setError] = useState(''), [success, setSuccess] = useState('');
@@ -45,7 +44,7 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
 
   useEffect(() => {
     const controller = new AbortController(); setBusy(true); setError(''); setData(null);
-    const request = api.search(resource, searchBody(resource, filters, page, size, sortBy, direction, thenBy, thenDirection), controller.signal);
+    const request = api.search(resource, searchBody(resource, filters, page, size, sorts), controller.signal);
     request.then(result => {
       if (controller.signal.aborted) return;
       if (!result || !Array.isArray(result.content) || !Number.isSafeInteger(result.totalElements) || !Number.isSafeInteger(result.totalPages)) throw new Error('Сервис вернул неверный формат страницы.');
@@ -55,7 +54,7 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
       setError(messageOf(error));
     }).finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
-  }, [resource, reload, revision, filters, page, size, sortBy, direction, thenBy, thenDirection]);
+  }, [resource, reload, revision, filters, page, size, sorts]);
 
   useEffect(() => {
     if (data && !busy && page > Math.max(1, data.totalPages)) setPage(Math.max(1, data.totalPages));
@@ -67,7 +66,7 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
       if (input.validity.badInput && input.dataset.field) incomplete[input.dataset.field] = 'Дата создания введена не полностью — укажите день, месяц и год.';
     });
     try {
-      searchBody(resource, draft, 1, size, sortBy, direction);
+      searchBody(resource, draft, 1, size, sorts);
       if (Object.keys(incomplete).length) throw new ValidationError(incomplete);
       setFilterErrors({}); setFilters({ ...draft }); setPage(1);
     } catch (error) {
@@ -93,6 +92,8 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
   };
   const filterError = (key: string) => filterErrors[key] && <span id={`filter-${key}-error`} className="field-error">{filterErrors[key]}</span>;
   const invalid = (key: string) => filterErrors[key] ? { 'aria-invalid': true, 'aria-describedby': `filter-${key}-error` } : {};
+  const updateSorts = (next: SortCriterion[]) => { setSorts(next); setPage(1); };
+  const changeSort = (index: number, change: Partial<SortCriterion>) => updateSorts(sorts.map((item, other) => other === index ? { ...item, ...change } : item));
   const ranges = lab ? [['x', 'Координата X'], ['y', 'Координата Y'], ['minimalPoint', 'Минимальный балл'], ['creationDate', `Дата создания · ${displayTimeZone}`], ['disciplinePracticeHours', 'Часы дисциплины'], ['disciplineLabsCount', 'Работ в дисциплине']] : [['practiceHours', 'Часы практики'], ['labsCount', 'Количество работ']];
   const sortFields = lab ? ['id', 'name', 'creationDate', 'minimalPoint', 'difficulty', 'coordinates.x', 'coordinates.y', 'discipline.id', 'discipline.name', 'discipline.practiceHours', 'discipline.labsCount'] : ['id', 'name', 'practiceHours', 'labsCount'];
   return <>
@@ -105,9 +106,18 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
         {activeFilters > 0 && <button type="button" className="text-button clear-filters" onClick={() => { setDraft({ ...emptyFilters }); setFilters({ ...emptyFilters }); setFilterErrors({}); setPage(1); setError(''); }}>Сбросить фильтры <X size={13} /></button>}
       </form>
       {error && <div className="alert error catalog-alert" role="alert">{error}<button type="button" className="text-button" onClick={() => { setError(''); setReload(value => value + 1); }}>Повторить</button></div>}{success && <div className="alert success catalog-alert" role="status"><Check size={16} />{success}<button className="icon-button" aria-label="Скрыть сообщение" onClick={() => setSuccess('')}><X size={15} /></button></div>}
-      <div className="table-controls"><div><label htmlFor="sort">Сортировка</label><select aria-label="Сортировка" id="sort" value={sortBy} onChange={event => { setSortBy(event.target.value); if (thenBy === event.target.value) setThenBy(''); setPage(1); }}>{sortFields.map(key => <option key={key} value={key}>{sortLabels[key]}</option>)}</select><button className="icon-button" aria-label={direction === 'asc' ? 'Сортировать по убыванию' : 'Сортировать по возрастанию'} onClick={() => { setDirection(value => value === 'asc' ? 'desc' : 'asc'); setPage(1); }}><ArrowDown size={15} style={{ transform: direction === 'desc' ? 'rotate(180deg)' : undefined }} /></button></div></div>
-      <div className="table-controls secondary-sort"><span>Второй критерий</span><div><select aria-label="Второй критерий сортировки" value={thenBy} onChange={event => { setThenBy(event.target.value); setPage(1); }}><option value="">Не выбран</option>{sortFields.filter(key => key !== sortBy).map(key => <option key={key} value={key}>{sortLabels[key]}</option>)}</select><button className="icon-button" disabled={!thenBy} aria-label="Изменить направление второго критерия" onClick={() => { setThenDirection(value => value === 'asc' ? 'desc' : 'asc'); setPage(1); }}><ArrowDown size={15} style={{ transform: thenDirection === 'desc' ? 'rotate(180deg)' : undefined }} /></button></div></div>
-      <div className="table-scroll" aria-busy={busy}><table><thead><tr><th>ID</th><th>{lab ? 'Лабораторная работа' : 'Название дисциплины'}</th>{lab ? <><th>Сложность</th><th>Мин. балл</th><th>Дисциплина</th><th>Координаты</th></> : <><th>Часы практики</th><th>Лабораторных</th></>}<th><span className="sr-only">Действия</span></th></tr></thead><tbody>{!busy && data?.content.map(entity => <tr key={entity.id}><td className="id-cell">{String(entity.id).padStart(2, '0')}</td><td><button className="entity-title" onClick={() => setDetail(entity)}>{entity.name}</button>{isLab(entity) && <span className="date-cell">{formatCreationDate(entity.creationDate)}</span>}</td>{isLab(entity) ? <><td><span className={`difficulty ${entity.difficulty?.toLowerCase() ?? 'unset'}`}><span />{entity.difficulty ? difficultyLabels[entity.difficulty] : 'Не задана'}</span></td><td className="number-cell">{entity.minimalPoint}</td><td>{entity.discipline ? <span className="discipline-tag">{entity.discipline.name}</span> : <span className="muted">Без дисциплины</span>}</td><td className="coordinates">{formatCoordinates(entity.coordinates)}</td></> : <><td className="number-cell">{entity.practiceHours} <span className="muted">ч</span></td><td><span className="count-badge">{entity.labsCount}</span></td></>}<td><div className="row-actions"><button className="icon-button" aria-label={`Редактировать ${entity.name}`} onClick={() => setEditor({ entity })}><Pencil size={16} /></button><button className="icon-button delete-button" aria-label={`Удалить ${entity.name}`} onClick={() => setDeleting(entity)}><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>
+      <div className="sort-list"><span className="sort-title">Сортировка</span><div className="sort-items">
+        {sorts.map((item, index) => <div className="sort-step" key={index}>
+          {index > 0 && <ArrowRight size={14} className="sort-then" aria-label="затем" />}
+          <div className="sort-item">
+            <select id={`sort-${index}`} aria-label={index === 0 ? 'Сортировка' : `Критерий сортировки ${index + 1}`} value={item.field} onChange={event => changeSort(index, { field: event.target.value })}>{sortFields.filter(key => key === item.field || !sorts.some(other => other.field === key)).map(key => <option key={key} value={key}>{sortLabels[key]}</option>)}</select>
+            <button className="icon-button" aria-label={`${index === 0 ? 'Сортировать' : `Критерий ${index + 1}:`} ${item.direction === 'asc' ? 'по убыванию' : 'по возрастанию'}`} title={item.direction === 'asc' ? 'По возрастанию' : 'По убыванию'} onClick={() => changeSort(index, { direction: item.direction === 'asc' ? 'desc' : 'asc' })}><ArrowDown size={15} style={{ transform: item.direction === 'desc' ? 'rotate(180deg)' : undefined }} /></button>
+            {index > 0 && <button className="icon-button" aria-label={`Убрать критерий сортировки ${index + 1}`} title="Убрать" onClick={() => updateSorts(sorts.filter((_, other) => other !== index))}><X size={14} /></button>}
+          </div>
+        </div>)}
+        {sorts.length < sortFields.length && <button className="text-button sort-add" onClick={() => updateSorts([...sorts, { field: sortFields.find(key => !sorts.some(other => other.field === key))!, direction: 'asc' }])}><Plus size={14} />Добавить критерий</button>}
+      </div></div>
+      <div className="table-scroll" aria-busy={busy}><table><thead><tr><th>ID</th><th>{lab ? 'Лабораторная работа' : 'Название дисциплины'}</th>{lab ? <><th>Сложность</th><th>Мин. балл</th><th>Дисциплина</th><th>Координаты</th></> : <><th>Часы практики</th><th>Лабораторных</th></>}<th><span className="sr-only">Действия</span></th></tr></thead><tbody>{!busy && data?.content.map(entity => <tr key={entity.id}><td className="id-cell">{String(entity.id).padStart(2, '0')}</td><td><ExpandableText text={entity.name} render={shown => <button className="entity-title" onClick={() => setDetail(entity)}>{shown}</button>} />{isLab(entity) && <span className="date-cell">{formatCreationDate(entity.creationDate)}</span>}</td>{isLab(entity) ? <><td><span className={`difficulty ${entity.difficulty?.toLowerCase() ?? 'unset'}`}><span />{entity.difficulty ? difficultyLabels[entity.difficulty] : 'Не задана'}</span></td><td className="number-cell">{entity.minimalPoint}</td><td>{entity.discipline ? <ExpandableText text={entity.discipline.name} render={shown => <span className="discipline-tag">{shown}</span>} /> : <span className="muted">Без дисциплины</span>}</td><td className="coordinates">{formatCoordinates(entity.coordinates)}</td></> : <><td className="number-cell">{entity.practiceHours} <span className="muted">ч</span></td><td><span className="count-badge">{entity.labsCount}</span></td></>}<td><div className="row-actions"><button className="icon-button" aria-label={`Редактировать ${entity.name}`} onClick={() => setEditor({ entity })}><Pencil size={16} /></button><button className="icon-button delete-button" aria-label={`Удалить ${entity.name}`} onClick={() => setDeleting(entity)}><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>
       {busy ? <div className="empty-state"><RefreshCw className="spin" size={20} />Загрузка…</div> : !error && !data?.content.length && <div className="empty-state">{activeFilters ? 'Ничего не найдено' : 'Нет записей'}</div>}</div>
       <div className="pagination"><span>{data?.totalElements ? `${(page - 1) * size + 1}–${Math.min(page * size, data.totalElements)} из ${data.totalElements}` : '0 записей'}</span><div><label htmlFor="page-size">На странице</label><select aria-label="Размер страницы" id="page-size" value={size} onChange={event => { setSize(Number(event.target.value)); setPage(1); }}>{[1, 5, 10, 20, 50, 100].map(value => <option key={value}>{value}</option>)}</select><button className="icon-button" aria-label="Предыдущая страница" disabled={busy || page <= 1} onClick={() => setPage(value => value - 1)}><ArrowLeft size={16} /></button><span className="current-page">{page}</span><span className="muted">/ {Math.max(1, data?.totalPages ?? 0)}</span><button className="icon-button" aria-label="Следующая страница" disabled={busy || page >= (data?.totalPages ?? 0)} onClick={() => setPage(value => value + 1)}><ArrowRight size={16} /></button></div></div>
     </section>

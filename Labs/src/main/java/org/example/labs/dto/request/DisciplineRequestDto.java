@@ -11,7 +11,6 @@ import static org.example.labs.validation.Limits.*;
 @NoArgsConstructor
 public class DisciplineRequestDto {
     @NotBlank(message = NAME_BLANK_MESSAGE)
-    @Size(max = NAME_MAX_LENGTH, message = NAME_LENGTH_MESSAGE)
     private String name;
 
     @NotNull(message = "Укажите часы практики")

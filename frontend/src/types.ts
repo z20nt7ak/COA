@@ -11,6 +11,7 @@ export interface LabWork {
 }
 export type Entity = LabWork | Discipline;
 export type Resource = 'lab-works' | 'disciplines';
+export interface SortCriterion { field: string; direction: 'asc' | 'desc' }
 export interface Page<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number }
 export type LabInput = Omit<LabWork, 'id' | 'creationDate' | 'discipline'> & { discipline: { id: number } | null };
 export type DisciplineInput = Pick<Discipline, 'name' | 'practiceHours'>;

@@ -5,6 +5,13 @@ import { collect, LIMITS, parseDecimal, parseInteger, parseName, positiveId } fr
 import { difficulties, difficultyLabels, isLab, type Entity, type LabInput, type DisciplineInput, type Resource, type Discipline, type LabWork, type Page } from './types';
 
 export const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить действие.';
+export function ExpandableText({ text, limit = 40, render = shown => shown }: { text: string; limit?: number; render?: (shown: string) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const chars = Array.from(text);
+  const long = chars.length > limit;
+  const shown = long && !open ? `${chars.slice(0, limit).join('').trimEnd()}…` : text;
+  return <span className="expandable" title={long && !open ? text : undefined}>{render(shown)}{long && <button type="button" className="expand-toggle" aria-expanded={open} aria-label={open ? `Свернуть «${text}»` : `Показать полностью «${text}»`} onClick={() => setOpen(value => !value)}>{open ? 'свернуть' : 'ещё'}</button>}</span>;
+}
 export function Modal({ title, children, close, busy = false }: { title: string; children: ReactNode; close: () => void; busy?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); ref.current?.querySelector<HTMLInputElement>('input, select')?.focus(); return () => ref.current?.close(); }, []);
@@ -85,7 +92,7 @@ export function EntityForm({ resource, entity, close, saved }: { resource: Resou
   return <Modal title={`${entity ? 'Редактировать' : 'Добавить'} ${lab ? 'лабораторную' : 'дисциплину'}`} close={close} busy={busy}>
     <form onSubmit={submit} noValidate>
       <fieldset disabled={busy} className="form-fields">
-        <label>Название<input {...fieldProps('name')} maxLength={LIMITS.nameMaxLength} defaultValue={entity?.name} required placeholder={lab ? 'Например, Исследование колебаний' : 'Например, Общая физика'} autoFocus />{fieldError('name')}</label>
+        <label>Название<input {...fieldProps('name')} defaultValue={entity?.name} required placeholder={lab ? 'Например, Исследование колебаний' : 'Например, Общая физика'} autoFocus />{fieldError('name')}</label>
         {lab ? <>
           <div className="form-grid"><label>Координата X<input {...fieldProps('x')} inputMode="numeric" autoComplete="off" required placeholder="Целое, от −1000 до 1000" defaultValue={existingLab?.coordinates.x ?? 0} />{fieldError('x')}</label><label>Координата Y<input {...fieldProps('y')} inputMode="decimal" autoComplete="off" required placeholder="От −1000 до 1000, напр. 12,5" defaultValue={existingLab?.coordinates.y ?? 0} />{fieldError('y')}</label></div>
           <div className="form-grid"><label>Минимальный балл<input {...fieldProps('minimalPoint')} inputMode="numeric" autoComplete="off" required placeholder="Целое, от 1 до 100" defaultValue={existingLab?.minimalPoint ?? 1} />{fieldError('minimalPoint')}</label><label>Сложность<select name="difficulty" defaultValue={existingLab?.difficulty ?? ''}><option value="">Не задана</option>{difficulties.map(value => <option key={value} value={value}>{difficultyLabels[value]}</option>)}</select></label></div>

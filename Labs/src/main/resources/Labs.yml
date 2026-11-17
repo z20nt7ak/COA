@@ -646,7 +646,6 @@ components:
         name:
           type: string
           minLength: 1
-          maxLength: 100
           pattern: '\S'
 
         coordinates:
@@ -674,7 +673,7 @@ components:
       required: [name, practiceHours]
       description: id генерируется сервером, labsCount изменяется сервером при изменении связей.
       properties:
-        name: {type: string, minLength: 1, maxLength: 100, pattern: '\S', description: Название не может состоять только из пробелов}
+        name: {type: string, minLength: 1, pattern: '\S', description: Название не может состоять только из пробелов}
         practiceHours: {type: integer, format: int64, minimum: 0, maximum: 500}
 
     SearchPage:

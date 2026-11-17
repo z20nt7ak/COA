@@ -1,4 +1,4 @@
-import type { Filters, Resource } from './types';
+import type { Filters, Resource, SortCriterion } from './types';
 import { displayTimeZone } from './format';
 import { collect, LIMITS, parseDate, parseDecimal, parseIds, parseInteger, ValidationError, type Range } from './validation';
 
@@ -49,9 +49,10 @@ export function validateFilters(resource: Resource, filters: Filters) {
   return { errors, values };
 }
 
-export function searchBody(resource: Resource, filters: Filters, page: number, size: number, sortBy: string, direction: string, thenBy = '', thenDirection = 'asc') {
-  const body: Record<string, unknown> = { page, size, sortBy, [resource === 'lab-works' ? 'sortType' : 'sortDirection']: direction };
-  if (thenBy) body.sort = [{ field: sortBy, direction }, { field: thenBy, direction: thenDirection }];
+export function searchBody(resource: Resource, filters: Filters, page: number, size: number, sorts: SortCriterion[]) {
+  const [main] = sorts;
+  const body: Record<string, unknown> = { page, size, sortBy: main.field, [resource === 'lab-works' ? 'sortType' : 'sortDirection']: main.direction };
+  if (sorts.length > 1) body.sort = sorts.map(({ field, direction }) => ({ field, direction }));
   if (filters.name.trim()) body.name = filters.name.trim();
   const { errors, values } = validateFilters(resource, filters);
   if (Object.keys(errors).length) throw new ValidationError(errors);

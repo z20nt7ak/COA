@@ -1,5 +1,4 @@
 export const LIMITS = {
-  nameMaxLength: 100,
   minimalPoint: { min: 1, max: 100 },
   coordinate: { min: -1000, max: 1000 },
   coordinateYFractionDigits: 2,
@@ -75,7 +74,6 @@ export function parseDate(raw: string, label: string): string {
 export function parseName(raw: string, label = 'Название'): string {
   const value = raw.trim();
   if (!value) throw new Error(`Заполните поле «${label}» — оно не может быть пустым или состоять только из пробелов.`);
-  if (value.length > LIMITS.nameMaxLength) throw new Error(`«${label}» должно быть не длиннее ${LIMITS.nameMaxLength} символов (сейчас ${value.length}).`);
   return value;
 }
 

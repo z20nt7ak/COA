@@ -82,8 +82,17 @@ describe('server search and pagination', () => {
     expect(JSON.parse(fetch.mock.lastCall![1].body)).toMatchObject({ name: 'механика', page: 1 });
     await user.selectOptions(screen.getByLabelText('Размер страницы'), '20');
     await waitFor(() => expect(JSON.parse(fetch.mock.lastCall![1].body).size).toBe(20));
-    await user.selectOptions(screen.getByLabelText('Второй критерий сортировки'), 'name');
+    await user.click(screen.getByRole('button', { name: 'Добавить критерий' }));
     await waitFor(() => expect(JSON.parse(fetch.mock.lastCall![1].body).sort).toEqual([{ field: 'id', direction: 'asc' }, { field: 'name', direction: 'asc' }]));
+    await user.click(screen.getByRole('button', { name: 'Добавить критерий' }));
+    await user.selectOptions(screen.getByLabelText('Критерий сортировки 3'), 'minimalPoint');
+    await user.click(screen.getByRole('button', { name: 'Критерий 3: по убыванию' }));
+    await user.selectOptions(screen.getByLabelText('Сортировка'), 'difficulty');
+    await waitFor(() => expect(JSON.parse(fetch.mock.lastCall![1].body)).toMatchObject({ sortBy: 'difficulty', sortType: 'asc',
+      sort: [{ field: 'difficulty', direction: 'asc' }, { field: 'name', direction: 'asc' }, { field: 'minimalPoint', direction: 'desc' }] }));
+    expect(within(screen.getByLabelText('Критерий сортировки 2')).queryByRole('option', { name: 'Сложность' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Убрать критерий сортировки 2' }));
+    await waitFor(() => expect(JSON.parse(fetch.mock.lastCall![1].body).sort).toEqual([{ field: 'difficulty', direction: 'asc' }, { field: 'minimalPoint', direction: 'desc' }]));
   });
   it('uses the discipline search endpoint and its response metadata', async () => {
     const fetch = vi.fn().mockImplementation(async (url: string) => json(url === '/api/labs/disciplines/search' ? page([discipline]) : page([entity])));

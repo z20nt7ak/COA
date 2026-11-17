@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDownToLine, ChartNoAxesColumnIncreasing, Layers3, RefreshCw } from 'lucide-react';
 import { api, ApiError } from './api';
-import { LinkPager, Modal, messageOf } from './components';
+import { ExpandableText, LinkPager, Modal, messageOf } from './components';
 import { difficultyLabels, type LabWork, type NameGroup, type Page } from './types';
 
 const PAGE_SIZE = 5;
@@ -52,14 +52,14 @@ export default function LabOperations({ onLab }: { onLab: (lab: LabWork) => void
     {!modalOpen && feedbackView}
     {hardest !== null && <Modal title="Максимальная сложность" close={() => { setHardest(null); setFeedback(null); }}>
       <div className="group-summary">Сложность: {difficulty ? difficultyLabels[difficulty] : '—'} · Работ: {hardest.totalElements}</div>
-      <div className="table-scroll group-table"><table><thead><tr><th scope="col">ID</th><th scope="col">Название</th><th scope="col">Мин. балл</th><th scope="col">Дисциплина</th></tr></thead><tbody>{hardest.content.map(lab => <tr key={lab.id}><td>{lab.id}</td><td><button className="entity-title" onClick={() => { setHardest(null); onLab(lab); }}>{lab.name}</button></td><td>{lab.minimalPoint}</td><td>{lab.discipline ? lab.discipline.name : <span className="muted">Без дисциплины</span>}</td></tr>)}</tbody></table></div>
+      <div className="table-scroll group-table"><table><thead><tr><th scope="col">ID</th><th scope="col">Название</th><th scope="col">Мин. балл</th><th scope="col">Дисциплина</th></tr></thead><tbody>{hardest.content.map(lab => <tr key={lab.id}><td>{lab.id}</td><td><ExpandableText text={lab.name} render={shown => <button className="entity-title" onClick={() => { setHardest(null); onLab(lab); }}>{shown}</button>} /></td><td>{lab.minimalPoint}</td><td>{lab.discipline ? <ExpandableText text={lab.discipline.name} /> : <span className="muted">Без дисциплины</span>}</td></tr>)}</tbody></table></div>
       <LinkPager label="работ" page={hardest.page} totalPages={hardest.totalPages} disabled={busy !== null} go={page => run('max', page)} />
       {feedbackView}
       <div className="modal-actions"><button className="button primary" onClick={() => { setHardest(null); setFeedback(null); }}>Закрыть</button></div>
     </Modal>}
     {groups !== null && <Modal title="Группировка по названию" close={() => { setGroups(null); setFeedback(null); }}>
       <div className="group-summary">Групп: {groups.totalElements}</div>
-      {groups.totalElements > 0 ? <div className="table-scroll group-table"><table><thead><tr><th scope="col">Название</th><th scope="col">Количество</th></tr></thead><tbody>{groups.content.map(group => <tr key={group.name}><td>{group.name}</td><td>{group.count}</td></tr>)}</tbody></table></div>
+      {groups.totalElements > 0 ? <div className="table-scroll group-table"><table><thead><tr><th scope="col">Название</th><th scope="col">Количество</th></tr></thead><tbody>{groups.content.map(group => <tr key={group.name}><td><ExpandableText text={group.name} /></td><td>{group.count}</td></tr>)}</tbody></table></div>
         : <p>Нет лабораторных работ.</p>}
       <LinkPager label="групп" page={groups.page} totalPages={groups.totalPages} disabled={busy !== null} go={page => run('groups', page)} />
       {feedbackView}

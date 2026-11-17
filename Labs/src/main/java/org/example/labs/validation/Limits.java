@@ -3,9 +3,7 @@ package org.example.labs.validation;
 import java.time.LocalDate;
 
 public final class Limits {
-    public static final int NAME_MAX_LENGTH = 100;
     public static final String NAME_BLANK_MESSAGE = "Название не может быть пустым";
-    public static final String NAME_LENGTH_MESSAGE = "Название должно быть не длиннее " + NAME_MAX_LENGTH + " символов";
 
     public static final int MIN_POINT_MIN = 1;
     public static final int MIN_POINT_MAX = 100;
