@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowRight, Link2, RefreshCw, Unlink, X } from 'lucide-react';
 import { api } from './api';
-import { positiveId } from './search';
+import { collect, LIMITS, parseDecimal, parseInteger, parseName, positiveId } from './validation';
 import { difficulties, difficultyLabels, isLab, type Entity, type LabInput, type DisciplineInput, type Resource, type Discipline, type LabWork, type Page } from './types';
 
 export const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить действие.';
@@ -42,38 +42,53 @@ export function EntityForm({ resource, entity, close, saved }: { resource: Resou
   const currentDiscipline = existingLab?.discipline;
   const allowedDisciplines = currentDiscipline ? disciplines.filter(item => item.id === currentDiscipline.id) : disciplines;
   const cannotSave = busy || (lab && (loadingDisciplines || !!disciplineError || unavailableDiscipline));
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const clearFieldError = (key: string) => setFieldErrors(previous => {
+    if (!previous[key]) return previous;
+    const next = { ...previous }; delete next[key]; return next;
+  });
+  const fieldProps = (key: string) => ({
+    name: key, 'aria-invalid': fieldErrors[key] ? true : undefined,
+    'aria-describedby': fieldErrors[key] ? `${key}-error` : undefined,
+    onChange: () => clearFieldError(key),
+  });
+  const fieldError = (key: string) => fieldErrors[key] && <span id={`${key}-error`} className="field-error">{fieldErrors[key]}</span>;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
     if (cannotSave) return;
     const data = new FormData(event.currentTarget);
-    const number = (key: string) => Number(data.get(key));
-    const name = String(data.get('name')).trim();
-    if (!name) { setError('Введите название: строка не может состоять только из пробелов.'); return; }
-    let body: LabInput | DisciplineInput;
+    const text = (key: string) => String(data.get(key) ?? '');
+    const errors: Record<string, string> = {};
+    const name = collect(errors, 'name', () => parseName(text('name')));
+    let body: LabInput | DisciplineInput | undefined;
+    if (lab) {
+      const x = collect(errors, 'x', () => parseInteger(text('x'), 'Координата X', LIMITS.coordinate));
+      const y = collect(errors, 'y', () => parseDecimal(text('y'), 'Координата Y', LIMITS.coordinate, LIMITS.coordinateYFractionDigits));
+      const minimalPoint = collect(errors, 'minimalPoint', () => parseInteger(text('minimalPoint'), 'Минимальный балл', LIMITS.minimalPoint));
+      const discipline = text('discipline').trim();
+      const disciplineRef = discipline ? collect(errors, 'discipline', () => ({ id: positiveId(discipline, 'ID дисциплины') })) : null;
+      if (!Object.keys(errors).length) body = { name: name!, coordinates: { x: x!, y: y! }, minimalPoint: minimalPoint!, difficulty: (text('difficulty') || null) as LabInput['difficulty'], discipline: disciplineRef ?? null };
+    } else {
+      const practiceHours = collect(errors, 'practiceHours', () => parseInteger(text('practiceHours'), 'Часы практики', LIMITS.practiceHours));
+      if (!Object.keys(errors).length) body = { name: name!, practiceHours: practiceHours! };
+    }
+    setFieldErrors(errors);
+    if (!body) {
+      event.currentTarget.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      return;
+    }
     try {
-      if (lab) {
-        const x = number('x'), y = number('y'), minimalPoint = number('minimalPoint');
-        if (!Number.isInteger(x) || x < -2147483648 || x > 2147483647) throw new Error('X должен быть целым числом в диапазоне int32.');
-        if (!Number.isFinite(y)) throw new Error('Введите конечное значение Y.');
-        if (!Number.isInteger(minimalPoint) || minimalPoint < 1 || minimalPoint > 2147483647) throw new Error('Минимальный балл: целое число от 1 до 2147483647.');
-        const discipline = String(data.get('discipline')).trim();
-        body = { name, coordinates: { x, y }, minimalPoint, difficulty: (String(data.get('difficulty')) || null) as LabInput['difficulty'], discipline: discipline ? { id: positiveId(discipline) } : null };
-      } else {
-        const practiceHours = number('practiceHours');
-        if (!Number.isSafeInteger(practiceHours) || practiceHours < 0) throw new Error('Часы практики должны быть неотрицательным целым числом.');
-        body = { name, practiceHours };
-      }
       setBusy(true);
       saved(await api.save(resource, body, entity?.id));
     } catch (error) { setError(messageOf(error)); } finally { setBusy(false); }
   }
   return <Modal title={`${entity ? 'Редактировать' : 'Добавить'} ${lab ? 'лабораторную' : 'дисциплину'}`} close={close} busy={busy}>
-    <form onSubmit={submit}>
+    <form onSubmit={submit} noValidate>
       <fieldset disabled={busy} className="form-fields">
-        <label>Название<input name="name" defaultValue={entity?.name} required placeholder={lab ? 'Например, Исследование колебаний' : 'Например, Общая физика'} autoFocus /></label>
+        <label>Название<input {...fieldProps('name')} maxLength={LIMITS.nameMaxLength} defaultValue={entity?.name} required placeholder={lab ? 'Например, Исследование колебаний' : 'Например, Общая физика'} autoFocus />{fieldError('name')}</label>
         {lab ? <>
-          <div className="form-grid"><label>Координата X<input name="x" type="number" required step="1" min="-2147483648" max="2147483647" defaultValue={existingLab?.coordinates.x ?? 0} /></label><label>Координата Y<input name="y" type="number" required step="any" defaultValue={existingLab?.coordinates.y ?? 0} /></label></div>
-          <div className="form-grid"><label>Минимальный балл<input name="minimalPoint" type="number" required min="1" max="2147483647" step="1" defaultValue={existingLab?.minimalPoint ?? 1} /></label><label>Сложность<select name="difficulty" defaultValue={existingLab?.difficulty ?? ''}><option value="">Не задана</option>{difficulties.map(value => <option key={value} value={value}>{difficultyLabels[value]}</option>)}</select></label></div>
+          <div className="form-grid"><label>Координата X<input {...fieldProps('x')} inputMode="numeric" autoComplete="off" required placeholder="Целое, от −1000 до 1000" defaultValue={existingLab?.coordinates.x ?? 0} />{fieldError('x')}</label><label>Координата Y<input {...fieldProps('y')} inputMode="decimal" autoComplete="off" required placeholder="От −1000 до 1000, напр. 12,5" defaultValue={existingLab?.coordinates.y ?? 0} />{fieldError('y')}</label></div>
+          <div className="form-grid"><label>Минимальный балл<input {...fieldProps('minimalPoint')} inputMode="numeric" autoComplete="off" required placeholder="Целое, от 1 до 100" defaultValue={existingLab?.minimalPoint ?? 1} />{fieldError('minimalPoint')}</label><label>Сложность<select name="difficulty" defaultValue={existingLab?.difficulty ?? ''}><option value="">Не задана</option>{difficulties.map(value => <option key={value} value={value}>{difficultyLabels[value]}</option>)}</select></label></div>
           <label>Дисциплина <span className="optional">необязательно</span><select aria-label="Дисциплина" name="discipline" value={disciplineId} disabled={loadingDisciplines || !!disciplineError} onChange={event => setDisciplineId(event.target.value)}>
             <option value="">{loadingDisciplines ? 'Загрузка дисциплин…' : 'Без дисциплины'}</option>
             {unavailableDiscipline && <option value={disciplineId} disabled>{existingLab?.discipline?.name ?? 'Текущая дисциплина'} — недоступна</option>}
@@ -82,7 +97,8 @@ export function EntityForm({ resource, entity, close, saved }: { resource: Resou
           {!loadingDisciplines && !disciplineError && disciplines.length === 0 && <p className="field-hint">Дисциплин пока нет. Создайте их в разделе «Дисциплины» или сохраните работу без привязки.</p>}
           {currentDiscipline && <p className="field-hint">Чтобы сменить дисциплину, выберите «Без дисциплины» и сохраните работу. Затем привяжите её к новой дисциплине.</p>}
 
-        </> : <><label>Часы практики<input name="practiceHours" type="number" min="0" max={Number.MAX_SAFE_INTEGER} step="1" required defaultValue={existingDiscipline?.practiceHours ?? 0} /></label></>}
+          {fieldError('discipline')}
+        </> : <><label>Часы практики<input {...fieldProps('practiceHours')} inputMode="numeric" autoComplete="off" required placeholder="Целое, от 0 до 500" defaultValue={existingDiscipline?.practiceHours ?? 0} />{fieldError('practiceHours')}</label></>}
       </fieldset>
       {lab && disciplineError && <div className="alert error" role="alert">Не удалось загрузить дисциплины: {disciplineError}<button type="button" className="text-button" disabled={busy} onClick={() => setRetryDisciplines(value => value + 1)}>Повторить загрузку</button></div>}
       {error && <div className="alert error" role="alert">{error}</div>}
@@ -105,7 +121,7 @@ export function DeleteDialog({ resource, entity, close, deleted }: { resource: R
   </Modal>;
 }
 
-function LinkPager({ label, page, totalPages, disabled, go }: { label: string; page: number; totalPages: number; disabled: boolean; go: (page: number) => void }) {
+export function LinkPager({ label, page, totalPages, disabled, go }: { label: string; page: number; totalPages: number; disabled: boolean; go: (page: number) => void }) {
   if (totalPages <= 1 && page === 1) return null;
   return <div className="link-pager" role="group" aria-label={`Страницы ${label}`}>
     <button type="button" className="button secondary" aria-label={`Предыдущая страница ${label}`} disabled={disabled || page <= 1} onClick={() => go(page - 1)}>Назад</button>

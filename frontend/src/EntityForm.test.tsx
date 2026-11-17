@@ -54,3 +54,21 @@ describe('discipline selector', () => {
     expect((screen.getByRole('button', { name: 'Сохранить' }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe('form validation', () => {
+  it('shows Russian per-field errors and does not send invalid numbers', async () => {
+    const fetch = vi.fn().mockImplementation(async () => json(options));
+    vi.stubGlobal('fetch', fetch); const user = userEvent.setup();
+    render(<EntityForm resource="lab-works" close={vi.fn()} saved={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Физика · №3' });
+    await user.type(screen.getByLabelText('Название'), '   ');
+    const x = screen.getByLabelText('Координата X'); await user.clear(x); await user.type(x, '1.5');
+    const point = screen.getByLabelText('Минимальный балл'); await user.clear(point); await user.type(point, '0');
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText(/дробные значения не допускаются/)).toBeTruthy();
+    expect(screen.getByText(/не может быть пустым/)).toBeTruthy();
+    expect(screen.getByText(/от 1 до 100/)).toBeTruthy();
+    expect(x.getAttribute('aria-invalid')).toBe('true');
+    expect(fetch.mock.calls.some(call => call[1]?.method === 'POST')).toBe(false);
+  });
+});

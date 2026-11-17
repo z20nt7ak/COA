@@ -5,26 +5,31 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import org.example.labs.enums.Difficulty;
 
+import static org.example.labs.validation.Limits.*;
 
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class LabWorkRequestDto {
-
-    @NotBlank
+    @NotBlank(message = NAME_BLANK_MESSAGE)
+    @Size(max = NAME_MAX_LENGTH, message = NAME_LENGTH_MESSAGE)
     private String name;
 
-    @NotNull
+    @NotNull(message = "Укажите координаты")
     @Valid
     private CoordinatesRequestDto coordinates;
 
-    @Positive
-    @NotNull
+    @NotNull(message = "Укажите минимальный балл")
+    @Min(value = MIN_POINT_MIN, message = MIN_POINT_MESSAGE)
+    @Max(value = MIN_POINT_MAX, message = MIN_POINT_MESSAGE)
     private Integer minimalPoint;
 
     private Difficulty difficulty;
 
     @Valid
     private ExistingDisciplineDto discipline;
+
+    public void setName(String name) {
+        this.name = name == null ? null : name.strip();
+    }
 }

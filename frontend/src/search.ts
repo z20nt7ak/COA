@@ -1,40 +1,65 @@
 import type { Filters, Resource } from './types';
 import { displayTimeZone } from './format';
+import { collect, LIMITS, parseDate, parseDecimal, parseIds, parseInteger, ValidationError, type Range } from './validation';
 
-export function positiveId(value: string): number {
-  const number = Number(value);
-  if (!/^\d+$/.test(value.trim()) || !Number.isSafeInteger(number) || number < 1) throw new Error('ID должен быть положительным целым числом в безопасном диапазоне JavaScript.');
-  return number;
+export { positiveId } from './validation';
+
+type NumericRule = { label: string; parse: (raw: string, label: string) => number };
+const integer = (label: string, range: Range): NumericRule => ({ label, parse: (raw, text) => parseInteger(raw, text, range) });
+
+const labRanges: Record<string, NumericRule | 'date'> = {
+  x: integer('Координата X', LIMITS.coordinate),
+  y: { label: 'Координата Y', parse: (raw, text) => parseDecimal(raw, text, LIMITS.coordinate) },
+  minimalPoint: integer('Минимальный балл', LIMITS.minimalPoint),
+  creationDate: 'date',
+  disciplinePracticeHours: integer('Часы дисциплины', LIMITS.practiceHours),
+  disciplineLabsCount: integer('Работ в дисциплине', LIMITS.count),
+};
+const disciplineRanges: Record<string, NumericRule | 'date'> = {
+  practiceHours: integer('Часы практики', LIMITS.practiceHours),
+  labsCount: integer('Количество работ', LIMITS.count),
+};
+
+export function validateFilters(resource: Resource, filters: Filters) {
+  const errors: Record<string, string> = {};
+  const values: Record<string, unknown> = {};
+  const lab = resource === 'lab-works';
+  if (filters.ids.trim()) values[lab ? 'id' : 'ids'] = collect(errors, 'ids', () => parseIds(filters.ids, 'ID записей'));
+  if (lab && filters.disciplineIds.trim()) values.disciplineIds = collect(errors, 'disciplineIds', () => parseIds(filters.disciplineIds, 'ID дисциплин'));
+  for (const [field, rule] of Object.entries(lab ? labRanges : disciplineRanges)) {
+    const from = filters[`${field}From` as keyof Filters], to = filters[`${field}To` as keyof Filters];
+    if (rule === 'date') {
+      const dateFrom = from ? collect(errors, field, () => parseDate(from, 'Дата создания от')) : undefined;
+      const dateTo = to ? collect(errors, field, () => parseDate(to, 'Дата создания до')) : undefined;
+      if (dateFrom) values[`${field}From`] = dateFrom;
+      if (dateTo) values[`${field}To`] = dateTo;
+      if (!errors[field] && dateFrom && dateTo && dateFrom > dateTo) errors[field] = 'Дата «от» не может быть позже даты «до».';
+      if (dateFrom || dateTo) values.dateTimeZone = displayTimeZone;
+      continue;
+    }
+    const parsed = [['From', from, 'от'], ['To', to, 'до']].map(([suffix, raw, word]) => {
+      if (!raw.trim()) return undefined;
+      const value = collect(errors, field, () => rule.parse(raw, `${rule.label} ${word}`));
+      if (value !== undefined) values[`${field}${suffix}`] = value;
+      return value;
+    });
+    if (!errors[field] && parsed[0] !== undefined && parsed[1] !== undefined && parsed[0] > parsed[1])
+      errors[field] = `«${rule.label}»: значение «от» не может быть больше значения «до».`;
+  }
+  return { errors, values };
 }
-function ids(value: string) { return [...new Set(value.split(',').map(item => positiveId(item.trim())))]; }
+
 export function searchBody(resource: Resource, filters: Filters, page: number, size: number, sortBy: string, direction: string, thenBy = '', thenDirection = 'asc') {
   const body: Record<string, unknown> = { page, size, sortBy, [resource === 'lab-works' ? 'sortType' : 'sortDirection']: direction };
   if (thenBy) body.sort = [{ field: sortBy, direction }, { field: thenBy, direction: thenDirection }];
   if (filters.name.trim()) body.name = filters.name.trim();
-  if (filters.ids.trim()) body[resource === 'lab-works' ? 'id' : 'ids'] = ids(filters.ids);
-  const fields = resource === 'lab-works'
-    ? ['x', 'y', 'minimalPoint', 'creationDate', 'disciplinePracticeHours', 'disciplineLabsCount'] : ['practiceHours', 'labsCount'];
-  for (const field of fields) {
-    for (const suffix of ['From', 'To']) {
-      const key = `${field}${suffix}` as keyof Filters;
-      const raw = filters[key];
-      if (!raw) continue;
-      if (field === 'creationDate') { body[key] = raw; body.dateTimeZone = displayTimeZone; continue; }
-      const value = Number(raw);
-      if (!Number.isFinite(value) || (field !== 'y' && !Number.isSafeInteger(value))) throw new Error('Проверьте числовые границы фильтров.');
-      if (field === 'x' && (value < -2147483648 || value > 2147483647)) throw new Error('Координата X должна помещаться в int32.');
-      if (field === 'minimalPoint' && (value < 1 || value > 2147483647)) throw new Error('Минимальный балл: от 1 до 2147483647.');
-      if (['practiceHours', 'labsCount', 'disciplinePracticeHours', 'disciplineLabsCount'].includes(field) && value < 0) throw new Error('Часы и количество работ не могут быть отрицательными.');
-      body[key] = value;
-    }
-    const from = body[`${field}From`], to = body[`${field}To`];
-    if ((typeof from === 'number' && typeof to === 'number' && from > to) || (typeof from === 'string' && typeof to === 'string' && from > to)) throw new Error('Нижняя граница диапазона не может превышать верхнюю.');
-  }
+  const { errors, values } = validateFilters(resource, filters);
+  if (Object.keys(errors).length) throw new ValidationError(errors);
+  Object.assign(body, values);
   if (resource === 'lab-works') {
     for (const field of ['hasDiscipline', 'hasDifficulty'] as const) if (filters[field] !== '') body[field] = filters[field] === 'true';
     if (filters.disciplineName.trim()) body.disciplineName = filters.disciplineName.trim();
     if (filters.difficulty) body.difficulty = filters.difficulty;
-    if (filters.disciplineIds.trim()) body.disciplineIds = ids(filters.disciplineIds);
   }
   return body;
 }

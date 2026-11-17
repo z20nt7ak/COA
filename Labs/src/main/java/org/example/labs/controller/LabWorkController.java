@@ -45,13 +45,17 @@ public class LabWorkController {
     }
 
     @GetMapping("/by-max-difficulty")
-    public LabWorkResponseDto getByMaxDifficulty() {
-        return labWorkService.getByMaxDifficulty();
+    public PageResponseDto<LabWorkResponseDto> getByMaxDifficulty(
+            @RequestParam(name = "page", defaultValue = "1") int page,
+            @RequestParam(name = "size", defaultValue = "5") int size) {
+        return labWorkService.getByMaxDifficulty(page, size);
     }
 
     @GetMapping("/group-by-name")
-    public List<NameGroupResponseDto> groupByName() {
-        return labWorkService.groupByName();
+    public PageResponseDto<NameGroupResponseDto> groupByName(
+            @RequestParam(name = "page", defaultValue = "1") int page,
+            @RequestParam(name = "size", defaultValue = "5") int size) {
+        return labWorkService.groupByName(page, size);
     }
 
     @PutMapping("/{id}/discipline/{disciplineId}")

@@ -8,8 +8,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ExistingDisciplineDto {
-
-    @NotNull
-    @Positive
+    @NotNull(message = "Укажите ID дисциплины")
+    @Positive(message = "ID дисциплины должен быть положительным числом")
     private Long id;
 }

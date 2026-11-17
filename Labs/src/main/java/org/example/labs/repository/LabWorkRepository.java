@@ -1,5 +1,6 @@
 package org.example.labs.repository;
 
+import org.example.labs.enums.Difficulty;
 import org.example.labs.models.LabWork;
 import org.example.labs.dto.response.NameGroupResponseDto;
 import org.springframework.data.domain.Pageable;
@@ -33,22 +34,25 @@ public interface LabWorkRepository extends JpaRepository<LabWork, Long>, JpaSpec
     @EntityGraph(attributePaths = "discipline")
     Optional<LabWork> findFirstByOrderByIdAsc();
 
-    @EntityGraph(attributePaths = "discipline")
     @Query("""
-            select l from LabWork l
+            select l.difficulty from LabWork l
             where l.difficulty is not null
             order by case
                 when l.difficulty = org.example.labs.enums.Difficulty.TERRIBLE then 4
                 when l.difficulty = org.example.labs.enums.Difficulty.VERY_HARD then 3
                 when l.difficulty = org.example.labs.enums.Difficulty.EASY then 2
                 when l.difficulty = org.example.labs.enums.Difficulty.VERY_EASY then 1
-                else 0 end desc, l.id asc
+                else 0 end desc
             """)
-    List<LabWork> findByMaximumDifficulty(Pageable pageable);
+    List<Difficulty> findMaximumDifficulty(Pageable pageable);
 
-    @Query("""
+    @EntityGraph(attributePaths = "discipline")
+    Page<LabWork> findByDifficulty(Difficulty difficulty, Pageable pageable);
+
+    @Query(value = """
             select new org.example.labs.dto.response.NameGroupResponseDto(l.name, count(l))
             from LabWork l group by l.name order by l.name asc
-            """)
-    List<NameGroupResponseDto> countGroupedByName();
+            """,
+            countQuery = "select count(distinct l.name) from LabWork l")
+    Page<NameGroupResponseDto> countGroupedByName(Pageable pageable);
 }

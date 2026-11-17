@@ -78,7 +78,6 @@ describe('server search and pagination', () => {
     expect(JSON.parse(fetch.mock.lastCall![1].body).page).toBe(2);
     await user.type(screen.getByLabelText('Поиск по названию'), 'механика');
     await user.click(screen.getByRole('button', { name: 'Найти' }));
-    // Deliberately a name not matching the client input: frontend must render the server response unchanged.
     await screen.findByRole('button', { name: 'Найдено сервером' });
     expect(JSON.parse(fetch.mock.lastCall![1].body)).toMatchObject({ name: 'механика', page: 1 });
     await user.selectOptions(screen.getByLabelText('Размер страницы'), '20');
@@ -119,5 +118,21 @@ describe('server search and pagination', () => {
     await user.selectOptions(screen.getByLabelText('Дисциплина'), '3');
     await user.click(screen.getByRole('button', { name: 'Добавить в программу' }));
     await screen.findByText('Работа уже привязана');
+  });
+});
+
+describe('date filter', () => {
+  it('reports a partially typed date instead of silently ignoring it', async () => {
+    const fetch = vi.fn().mockImplementation(async () => json(page([])));
+    vi.stubGlobal('fetch', fetch); render(<App />); const user = userEvent.setup();
+    await screen.findByText('Нет записей');
+    await user.click(screen.getByRole('button', { name: /Фильтры/ }));
+    const from = screen.getByLabelText(/Дата создания .* от/) as HTMLInputElement;
+    Object.defineProperty(from, 'validity', { value: { badInput: true } });
+    const calls = fetch.mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'Найти' }));
+    expect(await screen.findByText(/введена не полностью/)).toBeTruthy();
+    expect(from.getAttribute('aria-invalid')).toBe('true');
+    expect(fetch.mock.calls.length).toBe(calls);
   });
 });

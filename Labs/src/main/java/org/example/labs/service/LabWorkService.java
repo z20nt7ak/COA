@@ -3,6 +3,10 @@ package org.example.labs.service;
 import jakarta.persistence.EntityNotFoundException;
 import org.example.labs.dto.request.LabWorkRequestDto;
 import org.example.labs.dto.request.LabWorkSearchRequestDto;
+import org.example.labs.dto.request.PageOptions;
+import org.example.labs.exceptions.InvalidSearchException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.example.labs.dto.response.PageResponseDto;
 import org.example.labs.search.SearchSpecifications;
 import org.example.labs.dto.response.LabWorkResponseDto;
@@ -104,19 +108,29 @@ public class LabWorkService {
     }
 
     @Transactional(readOnly = true)
-    public LabWorkResponseDto getByMaxDifficulty() {
-        return labWorkRepository.findByMaximumDifficulty(PageRequest.of(0, 1)).stream()
-                .findFirst().map(labWorkMapper::toDto)
-                .orElseThrow(() -> new EntityNotFoundException("Нет лабораторных работ с заданной сложностью"));
+    public PageResponseDto<LabWorkResponseDto> getByMaxDifficulty(int page, int size) {
+        Pageable pageable = pageable(page, size, Sort.by("id"));
+        Page<LabWork> result = labWorkRepository.findMaximumDifficulty(PageRequest.of(0, 1)).stream()
+                .findFirst()
+                .map(difficulty -> labWorkRepository.findByDifficulty(difficulty, pageable))
+                .orElseGet(() -> Page.empty(pageable));
+        return PageResponseDto.from(result.map(labWorkMapper::toDto));
     }
 
     @Transactional(readOnly = true)
-    public List<NameGroupResponseDto> groupByName() {
-        List<NameGroupResponseDto> groups = labWorkRepository.countGroupedByName();
-        if (groups.isEmpty()) {
-            throw new EntityNotFoundException("Нет лабораторных работ");
+    public PageResponseDto<NameGroupResponseDto> groupByName(int page, int size) {
+        return PageResponseDto.from(labWorkRepository.countGroupedByName(pageable(page, size, Sort.unsorted())));
+    }
+
+    private static Pageable pageable(int page, int size, Sort sort) {
+        if (page < 1) throw new InvalidSearchException("Номер страницы должен быть не меньше 1");
+        if (size < 1 || size > PageOptions.PAGE_SIZE_MAX) {
+            throw new InvalidSearchException("Размер страницы должен быть от 1 до " + PageOptions.PAGE_SIZE_MAX);
         }
-        return groups;
+        if (((long) page - 1) * size > Integer.MAX_VALUE) {
+            throw new InvalidSearchException("Смещение страницы превышает допустимый диапазон");
+        }
+        return PageRequest.of(page - 1, size, sort);
     }
 
     @Transactional

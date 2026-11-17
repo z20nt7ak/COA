@@ -177,3 +177,5 @@ input:focus, select:focus { border-color: #3e8f75; }
   .link-submit .button { width: 100%; }
 }
 @media(prefers-reduced-motion: reduce) { .button { transition: none; } }
+.field-error { display: block; margin-top: 5px; color: #9f231b; font-size: 12px; font-weight: 400; line-height: 1.4; }
+input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #c4483d !important; background: #fff7f5; }

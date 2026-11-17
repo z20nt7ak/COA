@@ -4,7 +4,8 @@ import { ArrowDown, ArrowLeft, ArrowRight, Check, Pencil, Plus, RefreshCw, Searc
 import { api } from './api';
 import LabOperations from './LabOperations';
 import { DeleteDialog, EntityForm, LinkPanel, Modal, messageOf } from './components';
-import { positiveId, searchBody } from './search';
+import { searchBody } from './search';
+import { LIMITS, positiveId, ValidationError } from './validation';
 import { difficulties, difficultyLabels, emptyFilters, isLab, type Entity, type Filters, type Resource, type Page } from './types';
 
 type View = Resource | 'bars';
@@ -34,7 +35,8 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
   const [data, setData] = useState<Page<Entity> | null>(null);
   const [busy, setBusy] = useState(true), [lookupBusy, setLookupBusy] = useState(false);
   const [error, setError] = useState(''), [success, setSuccess] = useState('');
-  const [lookup, setLookup] = useState('');
+  const [lookup, setLookup] = useState(''), [lookupError, setLookupError] = useState('');
+  const [filterErrors, setFilterErrors] = useState<Record<string, string>>({});
   const [editor, setEditor] = useState<{ entity?: Entity } | null>(null);
   const [deleting, setDeleting] = useState<Entity | null>(null), [detail, setDetail] = useState<Entity | null>(null);
   const [reload, setReload] = useState(0);
@@ -58,30 +60,49 @@ function Catalog({ resource, revision }: { resource: Resource; revision: number 
   useEffect(() => {
     if (data && !busy && page > Math.max(1, data.totalPages)) setPage(Math.max(1, data.totalPages));
   }, [data?.totalPages, busy, page]);
-  function apply(event: FormEvent) {
+  function apply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
-    try { searchBody(resource, draft, 1, size, sortBy, direction); setFilters({ ...draft }); setPage(1); } catch (error) { setError(messageOf(error)); }
+    const incomplete: Record<string, string> = {};
+    event.currentTarget.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach(input => {
+      if (input.validity.badInput && input.dataset.field) incomplete[input.dataset.field] = 'Дата создания введена не полностью — укажите день, месяц и год.';
+    });
+    try {
+      searchBody(resource, draft, 1, size, sortBy, direction);
+      if (Object.keys(incomplete).length) throw new ValidationError(incomplete);
+      setFilterErrors({}); setFilters({ ...draft }); setPage(1);
+    } catch (error) {
+      if (error instanceof ValidationError) { setFilterErrors({ ...error.errors, ...incomplete }); setExpanded(true); }
+      else setError(messageOf(error));
+    }
   }
   async function openById(event: FormEvent) {
-    event.preventDefault(); setError(''); setSuccess('');
-    try {
-      const id = positiveId(lookup); setLookupBusy(true); const entity = await api.get(resource, id);
+    event.preventDefault(); setError(''); setSuccess(''); setLookupError('');
+    let id: number;
+    try { id = positiveId(lookup, 'ID записи'); } catch (error) { setLookupError(messageOf(error)); return; }
+    try { setLookupBusy(true); const entity = await api.get(resource, id);
       if (!alive.current) return;
       setDetail(entity);
     } catch (error) { if (alive.current) setError(messageOf(error)); } finally { if (alive.current) setLookupBusy(false); }
   }
   function refresh() { setReload(value => value + 1); }
   const activeFilters = Object.values(filters).filter(Boolean).length;
-  const setField = (key: keyof Filters, value: string) => setDraft(previous => ({ ...previous, [key]: value }));
+  const setField = (key: keyof Filters, value: string) => {
+    setDraft(previous => ({ ...previous, [key]: value }));
+    const group = key.replace(/(From|To)$/, '');
+    setFilterErrors(previous => { if (!previous[group]) return previous; const next = { ...previous }; delete next[group]; return next; });
+  };
+  const filterError = (key: string) => filterErrors[key] && <span id={`filter-${key}-error`} className="field-error">{filterErrors[key]}</span>;
+  const invalid = (key: string) => filterErrors[key] ? { 'aria-invalid': true, 'aria-describedby': `filter-${key}-error` } : {};
   const ranges = lab ? [['x', 'Координата X'], ['y', 'Координата Y'], ['minimalPoint', 'Минимальный балл'], ['creationDate', `Дата создания · ${displayTimeZone}`], ['disciplinePracticeHours', 'Часы дисциплины'], ['disciplineLabsCount', 'Работ в дисциплине']] : [['practiceHours', 'Часы практики'], ['labsCount', 'Количество работ']];
   const sortFields = lab ? ['id', 'name', 'creationDate', 'minimalPoint', 'difficulty', 'coordinates.x', 'coordinates.y', 'discipline.id', 'discipline.name', 'discipline.practiceHours', 'discipline.labsCount'] : ['id', 'name', 'practiceHours', 'labsCount'];
   return <>
     {lab && <LabOperations onLab={entity => { setDetail(entity); }} />}
     <section className="card catalog"><div className="catalog-heading"><div><h2>{lab ? 'Лабораторные работы' : 'Дисциплины'} <span className="count-badge">{data?.totalElements ?? '—'}</span></h2></div><button className="button primary" onClick={() => setEditor({})}><Plus size={17} />{lab ? 'Добавить работу' : 'Добавить дисциплину'}</button></div>
-      <div className="toolbar"><form className="id-lookup" onSubmit={openById}><span className="input-prefix">ID</span><input aria-label="ID записи" inputMode="numeric" pattern="[0-9]+" required placeholder="Открыть по ID" value={lookup} onChange={event => setLookup(event.target.value)} /><button className="icon-button" aria-label="Открыть запись по ID" disabled={lookupBusy}>{lookupBusy ? <RefreshCw size={18} className="spin" /> : <ArrowRight size={18} />}</button></form><button className="button secondary compact" onClick={refresh} disabled={busy}><RefreshCw size={16} className={busy ? 'spin' : ''} />Обновить</button></div>
-      <form onSubmit={apply} className="filter-form"><div className="filter-row"><div className="search-field"><Search size={18} /><input aria-label="Поиск по названию" placeholder="Найти по названию…" value={draft.name} onChange={event => setField('name', event.target.value)} /></div>{lab && <select aria-label="Фильтр по сложности" value={draft.difficulty} onChange={event => setField('difficulty', event.target.value)}><option value="">Любая сложность</option>{difficulties.map(value => <option key={value} value={value}>{difficultyLabels[value]}</option>)}</select>}<button type="button" className={`button secondary ${expanded ? 'filter-active' : ''}`} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}><SlidersHorizontal size={16} />Фильтры{activeFilters > 0 && <span className="filter-count">{activeFilters}</span>}</button><button className="button search-submit">Найти</button></div>
-        {expanded && <div className="advanced-filters"><label>ID записей<input value={draft.ids} placeholder="1, 2, 3" onChange={event => setField('ids', event.target.value)} /></label>{lab && <label>ID дисциплин<input value={draft.disciplineIds} placeholder="1, 2, 3" onChange={event => setField('disciplineIds', event.target.value)} /></label>}{lab && <><label>Наличие дисциплины<select value={draft.hasDiscipline} onChange={event => setField('hasDiscipline', event.target.value)}><option value="">Любые</option><option value="true">С дисциплиной</option><option value="false">Без дисциплины</option></select></label><label>Наличие сложности<select value={draft.hasDifficulty} onChange={event => setField('hasDifficulty', event.target.value)}><option value="">Любые</option><option value="true">Задана</option><option value="false">Не задана</option></select></label><label>Название дисциплины<input value={draft.disciplineName} onChange={event => setField('disciplineName', event.target.value)} /></label></>}{ranges.map(([field, label]) => <fieldset className="range" key={field}><legend>{label}</legend><div>{['From', 'To'].map((suffix, index) => <input key={suffix} aria-label={`${label} ${index === 0 ? 'от' : 'до'}`} type={field === 'creationDate' ? 'date' : 'number'} step={field === 'y' ? 'any' : '1'} placeholder={index === 0 ? 'От' : 'До'} value={draft[`${field}${suffix}` as keyof Filters]} onChange={event => setField(`${field}${suffix}` as keyof Filters, event.target.value)} />)}</div></fieldset>)}</div>}
-        {activeFilters > 0 && <button type="button" className="text-button clear-filters" onClick={() => { setDraft({ ...emptyFilters }); setFilters({ ...emptyFilters }); setPage(1); setError(''); }}>Сбросить фильтры <X size={13} /></button>}
+      <div className="toolbar"><form className="id-lookup" onSubmit={openById} noValidate><span className="input-prefix">ID</span><input aria-label="ID записи" inputMode="numeric" autoComplete="off" required placeholder="Открыть по ID" value={lookup} aria-invalid={lookupError ? true : undefined} aria-describedby={lookupError ? 'lookup-error' : undefined} onChange={event => { setLookup(event.target.value); setLookupError(''); }} /><button className="icon-button" aria-label="Открыть запись по ID" disabled={lookupBusy}>{lookupBusy ? <RefreshCw size={18} className="spin" /> : <ArrowRight size={18} />}</button></form><button className="button secondary compact" onClick={refresh} disabled={busy}><RefreshCw size={16} className={busy ? 'spin' : ''} />Обновить</button></div>
+      {lookupError && <div id="lookup-error" className="alert error catalog-alert" role="alert">{lookupError}</div>}
+      <form onSubmit={apply} className="filter-form" noValidate><div className="filter-row"><div className="search-field"><Search size={18} /><input aria-label="Поиск по названию" placeholder="Найти по названию…" value={draft.name} onChange={event => setField('name', event.target.value)} /></div>{lab && <select aria-label="Фильтр по сложности" value={draft.difficulty} onChange={event => setField('difficulty', event.target.value)}><option value="">Любая сложность</option>{difficulties.map(value => <option key={value} value={value}>{difficultyLabels[value]}</option>)}</select>}<button type="button" className={`button secondary ${expanded ? 'filter-active' : ''}`} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}><SlidersHorizontal size={16} />Фильтры{activeFilters > 0 && <span className="filter-count">{activeFilters}</span>}</button><button className="button search-submit">Найти</button></div>
+        {expanded && <div className="advanced-filters"><label>ID записей<input value={draft.ids} placeholder="1, 2, 3" inputMode="numeric" {...invalid('ids')} onChange={event => setField('ids', event.target.value)} />{filterError('ids')}</label>{lab && <label>ID дисциплин<input value={draft.disciplineIds} placeholder="1, 2, 3" inputMode="numeric" {...invalid('disciplineIds')} onChange={event => setField('disciplineIds', event.target.value)} />{filterError('disciplineIds')}</label>}{lab && <><label>Наличие дисциплины<select value={draft.hasDiscipline} onChange={event => setField('hasDiscipline', event.target.value)}><option value="">Любые</option><option value="true">С дисциплиной</option><option value="false">Без дисциплины</option></select></label><label>Наличие сложности<select value={draft.hasDifficulty} onChange={event => setField('hasDifficulty', event.target.value)}><option value="">Любые</option><option value="true">Задана</option><option value="false">Не задана</option></select></label><label>Название дисциплины<input value={draft.disciplineName} onChange={event => setField('disciplineName', event.target.value)} /></label></>}{ranges.map(([field, label]) => <fieldset className="range" key={field}><legend>{label}</legend><div>{['From', 'To'].map((suffix, index) => <input key={suffix} aria-label={`${label} ${index === 0 ? 'от' : 'до'}`} type={field === 'creationDate' ? 'date' : 'text'} data-field={field} min={field === 'creationDate' ? LIMITS.creationDate.min : undefined} max={field === 'creationDate' ? LIMITS.creationDate.max : undefined} inputMode={field === 'creationDate' ? undefined : field === 'y' ? 'decimal' : 'numeric'} autoComplete="off" {...invalid(field)} placeholder={index === 0 ? 'От' : 'До'} value={draft[`${field}${suffix}` as keyof Filters]} onChange={event => setField(`${field}${suffix}` as keyof Filters, event.target.value)} />)}</div>{filterError(field)}</fieldset>)}</div>}
+        {activeFilters > 0 && <button type="button" className="text-button clear-filters" onClick={() => { setDraft({ ...emptyFilters }); setFilters({ ...emptyFilters }); setFilterErrors({}); setPage(1); setError(''); }}>Сбросить фильтры <X size={13} /></button>}
       </form>
       {error && <div className="alert error catalog-alert" role="alert">{error}<button type="button" className="text-button" onClick={() => { setError(''); setReload(value => value + 1); }}>Повторить</button></div>}{success && <div className="alert success catalog-alert" role="status"><Check size={16} />{success}<button className="icon-button" aria-label="Скрыть сообщение" onClick={() => setSuccess('')}><X size={15} /></button></div>}
       <div className="table-controls"><div><label htmlFor="sort">Сортировка</label><select aria-label="Сортировка" id="sort" value={sortBy} onChange={event => { setSortBy(event.target.value); if (thenBy === event.target.value) setThenBy(''); setPage(1); }}>{sortFields.map(key => <option key={key} value={key}>{sortLabels[key]}</option>)}</select><button className="icon-button" aria-label={direction === 'asc' ? 'Сортировать по убыванию' : 'Сортировать по возрастанию'} onClick={() => { setDirection(value => value === 'asc' ? 'desc' : 'asc'); setPage(1); }}><ArrowDown size={15} style={{ transform: direction === 'desc' ? 'rotate(180deg)' : undefined }} /></button></div></div>
